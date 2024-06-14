@@ -1,36 +1,18 @@
 from typing import List, Tuple, Dict, Any
-import termcolor import cprint
+from collections import defaultdict
+from termcolor import cprint
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 
-import pyscipopt as scip
-
-
-try:
-    import gurobipy as gp
-    from gurobipy import GRB
-except ImportError:
-    print("Gurobi is not installed. Please install it to use this feature.")
-
-
-def create_model(solver: str) -> Any:
-    return
-
-def create_variable(model: Any):
-    return 
-
-
 @dataclass
-class MIPModel:
+class Model:
     solver: str = field(default="scip")
-    model: Any
-    binary_variables: Dict[str, Any] = field(default={})
-    integer_variables: Dict[str, Any] = field(default={})
-    continue_variables: Dict[str, Any] = field(default={})
+    model: Any = field(default=scip.Model())
+    binary_variables: defaultdict[Dict] = field(default_factory=lambda: defaultdict(Dict))
+    integer_variables: defaultdict[Dict] = field(default_factory=lambda: defaultdict(Dict))
+    continue_variables: defaultdict[Dict] = field(default_factory=lambda: defaultdict(Dict))
 
     timelimits: int = field(default=60) # default: 1 minute
-
-
 
 class MIPOptimizer(ABC):
 
@@ -43,7 +25,7 @@ class MIPOptimizer(ABC):
         pass
 
     @abstractmethod
-    def add_constraint(self, express: Any, sense: str, name: str) -> None:
+    def add_constraint(self, express: Any, name: str) -> None:
         pass
 
     @abstractmethod
@@ -81,11 +63,3 @@ class MIPOptimizer(ABC):
     @abstractmethod
     def get_solution_status(self) -> str:
         pass
-
-
-
-class SCIP(MIPOptimizer):
-    pass
-
-class Gurobi(MIPOptimizer):
-    pass
