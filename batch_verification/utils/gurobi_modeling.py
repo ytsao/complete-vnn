@@ -6,7 +6,7 @@ try:
     from gurobipy import GRB
 except ImportError:
     print("no gurobi installed!!!!!!!!!!!!!!!!!!!!!!!")
-    sys.exit(1)
+    # sys.exit(1)
 
 from .mip_modeling import Model
 from .mip_modeling import MIPOptimizer

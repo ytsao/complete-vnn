@@ -1,13 +1,12 @@
 from typing import List, Tuple, Dict, Any
 from collections import defaultdict
-from termcolor import cprint
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 
 @dataclass
 class Model:
     solver: str = field(default="scip")
-    model: Any = field(default=scip.Model())
+    model: Any = field(init=False)
     binary_variables: defaultdict[Dict] = field(default_factory=lambda: defaultdict(Dict))
     integer_variables: defaultdict[Dict] = field(default_factory=lambda: defaultdict(Dict))
     continue_variables: defaultdict[Dict] = field(default_factory=lambda: defaultdict(Dict))
