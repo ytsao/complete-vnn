@@ -14,23 +14,27 @@ from .mip_modeling import MIPOptimizer
 class GurobiModel(MIPOptimizer):
     def __init__(self, solver: Model) -> None:
         self.solver: Model = solver
-        self.solver.model = gp.Model()
+        self.solver._model = gp.Model()
         
         return
 
-    def add_variable(self, lb: int, ub: int, vtype: str, name: str) -> None:
+    def add_variable(self, lb: int | None, ub: int | None, vtype: str, name: str) -> None:
         """
         create single decision variable in MIP model.
         """
+        if lb == None: lb = -GRB.INFINITY
+        if ub == None: ub = GRB.INFINITY
+
         if vtype == "B":
             vtype = GRB.BINARY
+            self.solver.binary_variables[name] = self.solver._model.addVar(lb=lb, ub=ub, vtype=vtype, name=name)
         elif vtype == "I":
             vtype = GRB.INTEGER
+            self.solver.integer_variables[name] = self.solver._model.addVar(lb=lb, ub=ub, vtype=vtype, name=name)
         elif vtype == "C":
             vtype = GRB.CONTINUOUS
+            self.solver.continue_variables[name] = self.solver._model.addVar(lb=lb, ub=ub, vtype=vtype, name=name)
         
-        self.solver.addVar(lb=lb, ub=ub, vtype=vtype, name=name)
-
         return 
     
     def add_objective_function(self, express: Any, sense: str) -> None:
@@ -44,7 +48,7 @@ class GurobiModel(MIPOptimizer):
         elif sense == "maximize":
             sense = GRB.MAXIMIZE
         
-        self.solver.setObjective(express, sense=sense)
+        self.solver._model.setObjective(express, sense=sense)
 
         return
 
@@ -52,7 +56,7 @@ class GurobiModel(MIPOptimizer):
         """
         create single constraint in MIP model.
         """
-        self.solver.addConstr(express, name=name)
+        self.solver._model.addConstr(express, name=name)
 
         return
 
@@ -60,7 +64,7 @@ class GurobiModel(MIPOptimizer):
         """
         change the lower bound for specific decision variable.
         """
-        self.solver.model.setAttr("LB", variable, lb)
+        self.solver._model.setAttr("LB", variable, lb)
 
         return
     
@@ -68,7 +72,7 @@ class GurobiModel(MIPOptimizer):
         """
         change the upper bound for specific decision variable.
         """
-        self.solver.model.setAttr("UB", variable, ub)
+        self.solver._model.setAttr("UB", variable, ub)
 
         return
     
@@ -76,7 +80,7 @@ class GurobiModel(MIPOptimizer):
         """
         export model to lp file.
         """
-        self.solver.model.write(f"{name}.lp")
+        self.solver._model.write(f"{name}.lp")
 
         return 
 
@@ -84,7 +88,7 @@ class GurobiModel(MIPOptimizer):
         """
         optimize the model.
         """
-        self.solver.model.optimize()
+        self.solver._model.optimize()
 
         return
     
@@ -92,7 +96,7 @@ class GurobiModel(MIPOptimizer):
         """
         after building MIP model, we can retrive all of constraints from MIP model object.
         """
-        self.solver.model.getConstrs()
+        self.solver._model.getConstrs()
 
         return 
 
@@ -125,4 +129,4 @@ class GurobiModel(MIPOptimizer):
         msgdict: dict = {GRB.LOADED: "Loaded", GRB.OPTIMAL: "Optimal", GRB.INFEASIBLE: "Infeasible", GRB.INF_OR_UNBD: "Infeasible or Unbounded", GRB.UNBOUNDED: "Unbounded", GRB.CUTOFF: "CutOff", GRB.ITERATION_LIMIT: "IterationLimit", GRB.NODE_LIMIT: "NodeLimit", GRB.TIME_LIMIT: "TimeLimit",
                          GRB.SOLUTION_LIMIT: "SolutionLimit", GRB.INTERRUPTED: "Interrupted", GRB.NUMERIC: "Numeric", GRB.SUBOPTIMAL: "SubOptimal", GRB.INPROGRESS: "InProgress", GRB.USER_OBJ_LIMIT: "UserObjLimit", GRB.WORK_LIMIT: "WorkLimit", GRB.MEM_LIMIT: "MemoryLimit"}
         
-        return msgdict[model.status]
+        return msgdict[self.solver._model.status]

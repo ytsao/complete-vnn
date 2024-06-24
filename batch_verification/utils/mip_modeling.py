@@ -3,10 +3,19 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 
+import pyscipopt
+try:
+    import gurobipy as gp
+    from gurobipy import GRB
+except ImportError:
+    print("no gurobi installed!!!!!!!!!!!!!!!!!!!!!!!")
+    # sys.exit(1)
+
+
 @dataclass
 class Model:
-    solver: str = field(default="scip")
-    model: Any = field(init=False)
+    solver_name: str = field(default="scip")
+    _model: gp.Model | pyscipopt.Model = field(init=False) # from gurobi or scip module, only for gurobi_modeling or scip_modeling used
     binary_variables: defaultdict[Dict] = field(default_factory=lambda: defaultdict(Dict))
     integer_variables: defaultdict[Dict] = field(default_factory=lambda: defaultdict(Dict))
     continue_variables: defaultdict[Dict] = field(default_factory=lambda: defaultdict(Dict))
@@ -16,7 +25,7 @@ class Model:
 class MIPOptimizer(ABC):
 
     @abstractmethod
-    def add_variable(self, lb: int, ub: int, vtype: str, name: str) -> None:
+    def add_variable(self, lb: int | None, ub: int | None, vtype: str, name: str) -> None:
         pass
 
     @abstractmethod

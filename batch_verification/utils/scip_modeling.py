@@ -8,20 +8,20 @@ from .mip_modeling import MIPOptimizer
 class SCIPModel(MIPOptimizer):
     def __init__(self, solver: Model) -> None:
         self.solver: Model = solver
-        self.solver.model = scip.Model()
+        self.solver._model = scip.Model()
 
         return
 
-    def add_variable(self, lb: int, ub: int, vtype: str, name: str) -> None:
+    def add_variable(self, lb: int | None, ub: int | None, vtype: str, name: str) -> None:
         """
         create single decision variable in MIP model.
         """
         if vtype == "B":
-            self.solver.binary_variables[name] = self.solver.model.addVar(lb=lb, ub=ub, vtype=vtype, name=name)
+            self.solver.binary_variables[name] = self.solver._model.addVar(lb=lb, ub=ub, vtype=vtype, name=name)
         elif vtype == "I":
-            self.solver.integer_variables[name] = self.solver.model.addVar(lb=lb, ub=ub, vtype=vtype, name=name)
+            self.solver.integer_variables[name] = self.solver._model.addVar(lb=lb, ub=ub, vtype=vtype, name=name)
         elif vtype == "C":
-            self.solver.continue_variables[name] = self.solver.model.addVar(lb=lb, ub=ub, vtype=vtype, name=name)
+            self.solver.continue_variables[name] = self.solver._model.addVar(lb=lb, ub=ub, vtype=vtype, name=name)
 
         return 
     
@@ -31,7 +31,7 @@ class SCIPModel(MIPOptimizer):
         """
         if type(express) == type(None): return 
 
-        self.solver.model.setObjective(express, sense=sense)
+        self.solver._model.setObjective(express, sense=sense)
 
         return 
     
@@ -39,7 +39,7 @@ class SCIPModel(MIPOptimizer):
         """
         create single constraint in MIP model.
         """
-        self.solver.model.addCons(express, name=name)
+        self.solver._model.addCons(express, name=name)
 
         return 
     
@@ -47,7 +47,7 @@ class SCIPModel(MIPOptimizer):
         """
         change the lower bound for specific decision variable.
         """
-        self.solver.model.chgVarLb(variable, lb)
+        self.solver._model.chgVarLb(variable, lb)
 
         return
     
@@ -55,7 +55,7 @@ class SCIPModel(MIPOptimizer):
         """
         change the upper bound for specific decision variable.
         """
-        self.solver.model.chgVarUb(variable, ub)
+        self.solver._model.chgVarUb(variable, ub)
 
         return 
     
@@ -63,7 +63,7 @@ class SCIPModel(MIPOptimizer):
         """
         export the lp file to check whether model is correct or not.
         """
-        self.solver.model.writeProblem(f"{name}.lp")
+        self.solver._model.writeProblem(f"{name}.lp")
 
         return 
     
@@ -71,7 +71,7 @@ class SCIPModel(MIPOptimizer):
         """
         solve MIP model
         """
-        self.solver.model.optimize()
+        self.solver._model.optimize()
 
         return 
     
@@ -79,7 +79,7 @@ class SCIPModel(MIPOptimizer):
         """
         after building MIP model, we can retrive all of constraints from MIP model object.
         """
-        self.solver.model.getConss()
+        self.solver._model.getConss()
 
         return
     
@@ -95,7 +95,7 @@ class SCIPModel(MIPOptimizer):
         after solving MIP model, we can retrive the primal solution of specific decision variable from MIP model object.
         """
         
-        return self.solver.model.getVal(variable)
+        return self.solver._model.getVal(variable)
     
     def get_dual_solution(self, constraint: Any) -> float:
         """
@@ -105,7 +105,7 @@ class SCIPModel(MIPOptimizer):
             Otherwise, you cannot get dual solution.
         """
 
-        return self.solver.model.getDualsolLinear(constraint) 
+        return self.solver._model.getDualsolLinear(constraint) 
 
     def get_solution_status(self) -> str:
         """
@@ -115,4 +115,4 @@ class SCIPModel(MIPOptimizer):
         msgdict: dict = {"optimal": "Optimal",
                          "infeasible": "Infeasible", "unbounded": "Unbounded"}
 
-        return msgdict[self.solver.model.getStatus()]
+        return msgdict[self.solver._model.getStatus()]
