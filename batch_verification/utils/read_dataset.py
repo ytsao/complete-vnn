@@ -6,7 +6,13 @@ import onnx
 import onnxruntime as ort
 import numpy as np
 
+import tensorflow as tf
+tf.config.set_visible_devices([], device_type='GPU')
+import tensorflow_datasets as tfds
+import jax.numpy as jnp
+
 from .parameters_networks import NetworksStructure
+from .parameters_networks import DataSet
 
 
 def _read_onnx_model(onnx_file_path: str) -> onnx.ModelProto:
@@ -89,6 +95,47 @@ def _read_vnnlib_spec(vnnlib_file_path: str, inputs: int, outputs: int):
     return vnnlib_spec
 
 
+def load_dataset(dataset_name: str) -> DataSet:
+    def _one_hot(x, k, dtype=jnp.float32):
+        """Create a one-hot encoding of x of size k."""
+        return jnp.array(x[:, None] == jnp.arange(k), dtype)
+
+    dataset: DataSet = DataSet()
+
+    data_dir = f"./dataset/{dataset_name}"
+
+    data, info = tfds.load(name=dataset_name, batch_size=-1, data_dir=data_dir, with_info=True)
+    data = tfds.as_numpy(data)
+    train_data, test_data = data['train'], data['test']
+    num_labels = info.features['label'].num_classes
+    h, w, c = info.features['image'].shape
+    num_pixels = h * w * c
+
+    # Full train set
+    train_images, train_labels = train_data['image'], train_data['label']
+    train_images = jnp.reshape(train_images, (len(train_images), num_pixels))
+    train_labels = _one_hot(train_labels, num_labels)
+
+    # Full test set
+    test_images, test_labels = test_data['image'], test_data['label']
+    test_images = jnp.reshape(test_images, (len(test_images), num_pixels))
+    test_labels = _one_hot(test_labels, num_labels)
+
+    # Collection
+    dataset.train_images = train_images
+    dataset.train_labels = train_labels
+    dataset.test_images = test_images
+    dataset.test_labels = test_labels
+    dataset.num_labels = num_labels
+    dataset.num_pixels = num_pixels
+    dataset.num_height = h
+    dataset.num_weight = w
+    dataset.num_channel = c
+
+
+    return dataset
+
+
 def extract_network_structure(onnx_file_path: str, vnnlib_file_path: str) -> NetworksStructure:
     onnx_model: onnx.ModelProto = _read_onnx_model(onnx_file_path)
     num_inputs: int = _get_num_inputs(onnx_model)
@@ -115,7 +162,7 @@ def extract_network_structure(onnx_file_path: str, vnnlib_file_path: str) -> Net
     n.pre_condition = pre_condition
     n.post_condition = post_condition
 
-    print(n)
+    # print(n)
 
     return n
 

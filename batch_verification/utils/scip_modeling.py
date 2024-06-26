@@ -43,6 +43,17 @@ class SCIPModel(MIPOptimizer):
 
         return 
     
+    def add_max_constraint(self, max_variable: Any, variables: List[Any], name: str) -> None:
+        """
+        create max constraint in MIP model.
+        """
+        for each_variable in variables:
+            self.solver._model.addCons(max_variable >= each_variable, name=name)
+        
+        self.solver._model.addCons(max_variable <= scip.quicksum(variables), name=name)
+
+        return
+    
     def change_variable_lb(self, variable: Any, lb: int) -> None:
         """
         change the lower bound for specific decision variable.
@@ -61,7 +72,7 @@ class SCIPModel(MIPOptimizer):
     
     def export_lp_file(self, name: str) -> None:
         """
-        export the lp file to check whether model is correct or not.
+        export model to lp file. (without extension name)
         """
         self.solver._model.writeProblem(f"{name}.lp")
 

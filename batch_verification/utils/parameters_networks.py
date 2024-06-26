@@ -1,4 +1,5 @@
 from typing import List, Tuple
+from numpy import array as Array
 from dataclasses import dataclass, field
 
 
@@ -20,3 +21,15 @@ class NetworksStructure:
     # skip the type for pre_condition and post_condition    
     pre_condition: List = field(init=False) 
     post_condition: List = field(init=False)  # [num_post_region, lhs, rhs], mat * y <= rhs
+
+@dataclass
+class DataSet:
+    train_images: Array = field(init=False)
+    train_labels: Array = field(init=False)
+    test_images: Array = field(init=False)
+    test_labels: Array = field(init=False)
+    num_labels: int = field(init=False)
+    num_pixels: int = field(init=False)
+    num_height: int = field(init=False)
+    num_weight: int = field(init=False)
+    num_channel: int = field(init=False)

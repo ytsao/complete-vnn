@@ -37,6 +37,10 @@ class MIPOptimizer(ABC):
         pass
 
     @abstractmethod
+    def add_max_constraint(self, max_variable: Any, variables: List[Any], name: str) -> None:
+        pass
+
+    @abstractmethod
     def change_variable_lb(self, variable: Dict[str, Any], lb: int) -> None:
         pass
 

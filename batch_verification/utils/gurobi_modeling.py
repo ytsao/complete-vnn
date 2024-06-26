@@ -59,6 +59,14 @@ class GurobiModel(MIPOptimizer):
         self.solver._model.addConstr(express, name=name)
 
         return
+    
+    def add_max_constraint(self, max_variable: Any, variables: List[Any], name: str) -> None:
+        """
+        create max constraint in MIP model.
+        """
+        self.solver._model.addConstr(max_variable == gp.max_(variables), name=name)
+
+        return
 
     def change_variable_lb(self, variable: Any, lb: int) -> None:
         """
@@ -78,7 +86,7 @@ class GurobiModel(MIPOptimizer):
     
     def export_lp_file(self, name: str) -> None:
         """
-        export model to lp file.
+        export model to lp file. (without extension name)
         """
         self.solver._model.write(f"{name}.lp")
 
