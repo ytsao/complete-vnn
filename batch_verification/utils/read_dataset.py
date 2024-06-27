@@ -56,7 +56,7 @@ def _get_layer_to_layer(onnx_model: onnx.ModelProto) -> List[Tuple[int, int]]:
         if "MatMul" in initializer.name:
             layer_to_layer.append(array.shape)
         elif "weight" in initializer.name:
-            layer_to_layer.append(array.shape[1], array.shape[0])
+            layer_to_layer.append((array.shape[1], array.shape[0]))
 
     return layer_to_layer
 

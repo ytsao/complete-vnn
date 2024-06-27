@@ -15,7 +15,12 @@ class _ObjectiveFunction():
     def robustness_property(m: SCIPModel | GurobiModel) -> SCIPModel | GurobiModel:        
         robustness_variable = m.solver.continue_variables["robustness_property"]
         max_variable = m.solver.continue_variables["max_value"]
-        m.add_objective_function(express=robustness_variable + max_variable, sense="minimize")
+
+        expression = robustness_variable + max_variable
+        for key, value in m.solver.binary_variables.items():
+            expression += 2 * value 
+
+        m.add_objective_function(express=expression, sense="minimize")
 
         return m
     
@@ -64,6 +69,48 @@ class _Constraints():
 
         return m
 
+    @staticmethod
+    def post_condition(m: SCIPModel | GurobiModel, networks: NetworksStructure) -> SCIPModel | GurobiModel:
+        """
+        we don't need to consider negative value in post-condition.
+        this function is used to build post-condition constraints based on vnnlib definition.
+        """
+        
+        num_post_condition: int = len(networks.post_condition)
+        last_layer_id: int = networks.num_layers - 1
+
+        if num_post_condition > 1:
+            expression = sum(v_var for k_var, v_var in m.solver.binary_variables.items() if "y_pos" in k_var) >= 1
+            m.add_constraint(express=expression, name="post_condition1")
+
+            for i in range(num_post_condition):
+                for j in range(len(networks.post_condition[i][0])):
+
+                    rhs = networks.post_condition[i][1][j]
+                    if rhs > 0: 
+                        lhs = sum(networks.post_condition[i][0][j][k] * m.solver.continue_variables[f"x_{last_layer_id}_{k}"] for k in range(networks.layer_to_layer[-1][1]))
+                        m.add_constraint(express=lhs >= -rhs * m.solver.binary_variables[f"y_pos_{i}"], name=f"post_condition2_{i}_{j}")
+                        m.add_constraint(express=lhs <= rhs * (1 - m.solver.binary_variables[f"y_pos_{i}"]), name=f"post_condition2_{i}_{j}")
+
+                        # lhs = sum(networks.post_condition[i][0][j][k] * m.solver.continue_variables[f"s_{last_layer_id}_{k}"] for k in range(networks.layer_to_layer[-1][1]))
+                        # m.add_constraint(express=lhs >= -rhs * (1 - m.solver.binary_variables[f"y_neg_{i}"]), name=f"post_condition2_{i}_{j}")
+                        # m.add_constraint(express=lhs <= rhs * m.solver.binary_variables[f"y_neg_{i}"], name=f"post_condition2_{i}_{j}")
+                    else:
+                        lhs = sum(networks.post_condition[i][0][j][k] * m.solver.continue_variables[f"x_{last_layer_id}_{k}"] for k in range(networks.layer_to_layer[-1][1]))
+                        m.add_constraint(express=lhs >= -9999 * m.solver.binary_variables[f"y_pos_{i}"], name=f"post_condition2_{i}_{j}")
+                        m.add_constraint(express=lhs <= 9999 * (1 - m.solver.binary_variables[f"y_pos_{i}"]), name=f"post_condition2_{i}_{j}")
+
+                        # lhs = sum(networks.post_condition[i][0][j][k] * m.solver.continue_variables[f"s_{last_layer_id}_{k}"] for k in range(networks.layer_to_layer[-1][1]))
+                        # m.add_constraint(express=lhs >= -9999 * (1 - m.solver.binary_variables[f"y_neg_{i}"]), name=f"post_condition2_{i}_{j}")
+                        # m.add_constraint(express=lhs <= 9999 * m.solver.binary_variables[f"y_neg_{i}"], name=f"post_condition2_{i}_{j}")
+
+        else: # num_post_condition == 1
+            for j in range(len(networks.post_condition[0][0])):
+                lhs = sum(networks.post_condition[0][0][j][k] * ( m.solver.continue_variables[f"x_{last_layer_id}_{k}"] - m.solver.continue_variables[f"s_{last_layer_id}_{k}"] ) for k in range(networks.layer_to_layer[-1][1]))
+                rhs = networks.post_condition[0][1][j]
+                m.add_constraint(express=lhs <= rhs, name=f"post_condition2_{j}")
+
+        return 
 
     @staticmethod
     def feedforward_networks(m: SCIPModel | GurobiModel, networks: NetworksStructure) -> SCIPModel | GurobiModel:
@@ -100,11 +147,22 @@ class _Constraints():
                 continue
 
             for nk in range(Nk[0]):
-                expression = m.solver.continue_variables[f"x_{k}_{nk}"] <= 99999 * (1 - m.solver.binary_variables[f"z_{k}_{nk}"])
+                expression = m.solver.continue_variables[f"x_{k}_{nk}"] <= 9999 * (1 - m.solver.binary_variables[f"z_{k}_{nk}"])
                 m.add_constraint(express=expression, name=f"relu_{k}_{nk}_1")
 
-                expression = m.solver.continue_variables[f"s_{k}_{nk}"] <= 99999 * m.solver.binary_variables[f"z_{k}_{nk}"]
+                expression = m.solver.continue_variables[f"s_{k}_{nk}"] <= 9999 * m.solver.binary_variables[f"z_{k}_{nk}"]
                 m.add_constraint(express=expression, name=f"relu_{k}_{nk}_2")
+            
+            # last layer, even the output layer didn't need activation, these constraints still required.
+            # because there are several post-conditions have to be considered.
+            # includes OR and AND operators.
+            if k == networks.num_layers - 2:
+                for nk in range(Nk[1]):
+                    expression = m.solver.continue_variables[f"x_{k+1}_{nk}"] <= 9999 * (1 - m.solver.binary_variables[f"z_{k+1}_{nk}"])
+                    m.add_constraint(express=expression, name=f"relu_{k+1}_{nk}_1")
+
+                    expression = m.solver.continue_variables[f"s_{k+1}_{nk}"] <= 9999 * m.solver.binary_variables[f"z_{k+1}_{nk}"]
+                    m.add_constraint(express=expression, name=f"relu_{k+1}_{nk}_2")
 
         return m
     
@@ -116,46 +174,55 @@ def _create_decision_variables(m: SCIPModel | GurobiModel, networks: NetworksStr
     for k, Nk in enumerate(networks.layer_to_layer):
         if k == 0: # input layer
             for nk in range(Nk[0]):
-                name = f"x_{k}_{nk}"
+                name: str = f"x_{k}_{nk}"
                 m.add_variable(lb=None, ub=None, vtype="C", name=name)
         elif k <= networks.num_layers - 3:
             for nk in range(Nk[0]):
-                name = f"x_{k}_{nk}"
+                name: str = f"x_{k}_{nk}"
                 m.add_variable(lb=0, ub=None, vtype="C", name=name)
 
-                name = f"s_{k}_{nk}"
+                name: str = f"s_{k}_{nk}"
                 m.add_variable(lb=0, ub=None, vtype="C", name=name)
 
                 name = f"z_{k}_{nk}"
                 m.add_variable(lb=0, ub=1, vtype="B", name=name)
         else: # output layer
-            print("output layer")
             for nk in range(Nk[0]):
-                name = f"x_{k}_{nk}"
+                name: str = f"x_{k}_{nk}"
                 m.add_variable(lb=0, ub=None, vtype="C", name=name)
 
-                name = f"s_{k}_{nk}"
+                name: str = f"s_{k}_{nk}"
                 m.add_variable(lb=0, ub=None, vtype="C", name=name)
 
-                name = f"z_{k}_{nk}"
+                name: str = f"z_{k}_{nk}"
                 m.add_variable(lb=0, ub=1, vtype="B", name=name)
 
-                name = f"y_{k}_{nk}"
-                m.add_variable(lb=0, ub=None, vtype="C", name=name)
+                # 20240627: not sure, why do I need this.
+                # name: str = f"y_{k}_{nk}"
+                # m.add_variable(lb=0, ub=None, vtype="C", name=name)
 
             for nk in range(Nk[1]):
-                name = f"x_{k+1}_{nk}"
+                name: str = f"x_{k+1}_{nk}"
                 m.add_variable(lb=0, ub=None, vtype="C", name=name)
 
-                name = f"s_{k+1}_{nk}"
+                name: str = f"s_{k+1}_{nk}"
                 m.add_variable(lb=0, ub=None, vtype="C", name=name)
 
-                name = f"z_{k+1}_{nk}"
+                name: str = f"z_{k+1}_{nk}"
                 m.add_variable(lb=0, ub=1, vtype="B", name=name)
             
 
-            #TODO: 'or' condition in post-condition 
-    
+            # 'or' condition in post-condition 
+            # 1 binary variable to indicate 1 disjunctive term
+            num_post_condition: int = len(networks.post_condition)
+            if num_post_condition > 1:
+                for i in range(num_post_condition):
+                    name: str = f"y_pos_{i}"
+                    m.add_variable(lb=0, ub=1, vtype="B", name=name)
+
+                    name: str = f"y_neg_{i}"
+                    m.add_variable(lb=0, ub=1, vtype="B", name=name)
+
 
     # max function
     m.add_variable(lb=0, ub=None, vtype="C", name="max_value")
@@ -185,7 +252,9 @@ def mip_verifier (solver_name: str) -> SCIPModel | GurobiModel | None:
     # print("++++++++++++++++++++++++++++++++++++++++++++++")
 
     # extract networks structure
-    networks: NetworksStructure = read_dataset.extract_network_structure("./batch_verification/utils/benchmarks/onnx/ACASXU_run2a_1_1_batch_2000.onnx", "./batch_verification/utils/benchmarks/vnnlib/prop_7.vnnlib")
+    # networks: NetworksStructure = read_dataset.extract_network_structure("./batch_verification/utils/benchmarks/onnx/mnist-net_256x2.onnx", "./batch_verification/utils/benchmarks/vnnlib/prop_0_0.03.vnnlib") # UNSAT
+    networks: NetworksStructure = read_dataset.extract_network_structure("./batch_verification/utils/benchmarks/onnx/mnist-net_256x2.onnx", "./batch_verification/utils/benchmarks/vnnlib/prop_7_0.03.vnnlib")  # SAT
+    # networks: NetworksStructure = read_dataset.extract_network_structure("./batch_verification/utils/benchmarks/onnx/test_sat.onnx", "./batch_verification/utils/benchmarks/vnnlib/test_prop.vnnlib")
     
     # create decision variables
     _create_decision_variables(m=m, networks=networks)
@@ -195,7 +264,8 @@ def mip_verifier (solver_name: str) -> SCIPModel | GurobiModel | None:
 
     # create constraints
     _Constraints.pre_condition(m=m, networks=networks)
-    _Constraints.post_condition(m=m, dataset=dataset, data_id=0, networks=networks)
+    # _Constraints.post_condition(m=m, dataset=dataset, data_id=0, networks=networks)
+    _Constraints.post_condition(m=m, networks=networks)
     # _Constraints.adversarial_distance(m=m, dataset=dataset, data_id=0, networks=networks) # it should work
     _Constraints.feedforward_networks(m=m, networks=networks)
     # _Constraints.convolutional_networks(m=m)
@@ -212,22 +282,27 @@ def mip_verifier (solver_name: str) -> SCIPModel | GurobiModel | None:
     m.optimize()
 
     # print results
-    for k, v in m.solver.continue_variables.items():
-        primal_solution = m.get_primal_solution(v)
-        if primal_solution > 0:
-            print(f"{k}: {primal_solution}")
-    for k, v in m.solver.binary_variables.items():
-        primal_solution = m.get_primal_solution(v)
-        if primal_solution > 0.5:
-            print(f"{k}: {primal_solution}")
+    solution_status: str = m.get_solution_status()
+    if solution_status == "Infeasible":
+        print("UNSAT")
+    else:
+        print("SAT")
+        for k, v in m.solver.continue_variables.items():
+            primal_solution = m.get_primal_solution(v)
+            if primal_solution > 0:
+                print(f"{k}: {primal_solution}")
+        for k, v in m.solver.binary_variables.items():
+            primal_solution = m.get_primal_solution(v)
+            if primal_solution > 0.5 and "y" in k:
+                print(f"{k}: {primal_solution}")
 
     return m
 
 
 def main() -> None:
     print("this is main function")
-    mip_verifier(solver_name="scip")
-    print("scip got it")
+    # mip_verifier(solver_name="scip")
+    # print("scip got it")
     mip_verifier(solver_name="gurobi")
     print("gurobi got it")
     return
