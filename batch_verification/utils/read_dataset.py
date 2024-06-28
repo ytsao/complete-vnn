@@ -114,12 +114,14 @@ def load_dataset(dataset_name: str) -> DataSet:
     # Full train set
     train_images, train_labels = train_data['image'], train_data['label']
     train_images = jnp.reshape(train_images, (len(train_images), num_pixels))
-    train_labels = _one_hot(train_labels, num_labels)
+    train_images = train_images / 255.0
+    # train_labels = _one_hot(train_labels, num_labels) # no training, no need to one-hot encoding
 
     # Full test set
     test_images, test_labels = test_data['image'], test_data['label']
     test_images = jnp.reshape(test_images, (len(test_images), num_pixels))
-    test_labels = _one_hot(test_labels, num_labels)
+    test_images = test_images / 255.0
+    # test_labels = _one_hot(test_labels, num_labels)   # no training, no need to one-hot encoding
 
     # Collection
     dataset.train_images = train_images
