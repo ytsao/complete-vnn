@@ -5,16 +5,19 @@ os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 import jax.numpy as jnp
 import onnxruntime as ort
 
+from utils.write_vnnlib import write_vnnlib, write_vnnlib_merge
 from utils.parameters_networks import DataSet
 from utils.parameters_networks import NetworksStructure
 from utils.read_dataset import load_dataset
 from utils.read_dataset import extract_network_structure
 
-from src.cluster import Cluster
-
 from utils.mip_modeling import Model
 from utils.scip_modeling import SCIPModel
 from utils.gurobi_modeling import GurobiModel
+
+# * algorithms 
+from src.cluster import Cluster
+from src.mip import mip_verifier
 
 
 # TODO: implement verification algorithm in different ways
@@ -50,14 +53,14 @@ def main() -> str:
     # *  step 0. read the input files
     # *  ************************  * #
     dataset: DataSet = load_dataset("mnist")
-    networks: NetworksStructure = extract_network_structure("./utils/benchmarks/onnx/mnist-net_256x6.onnx", "./utils/benchmarks/vnnlib/prop_7_0.03.vnnlib")
+    onnx_filename: str = "./utils/benchmarks/onnx/mnist-net_256x2.onnx"
+    vnnlib_filename: str = "./utils/benchmarks/vnnlib/prop_7_0.03.vnnlib"
+    networks: NetworksStructure = extract_network_structure(onnx_filename, vnnlib_filename)
 
     # *  ************************  * #
     # *  step 1. filter correct classification results from testing dataset.
     # *  ************************  * #
-    # session = ort.InferenceSession("./utils/benchmarks/onnx/mnist-net_256x2.onnx", providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
-    # session = ort.InferenceSession("./utils/benchmarks/onnx/mnist-net_256x2.onnx", providers=["CPUExecutionProvider"])
-    session = ort.InferenceSession("./utils/benchmarks/onnx/mnist-net_256x6.onnx", providers=ort.get_available_providers())
+    session = ort.InferenceSession(onnx_filename, providers=ort.get_available_providers())
     input_name = session.get_inputs()[0].name
     output_name = session.get_outputs()[0].name
 
@@ -114,8 +117,45 @@ def main() -> str:
     # *  ************************  * #
     # *  step 3. cluster analysis
     # *  ************************  * #
-    cluster: Cluster = Cluster()
+    vnnlib_filename: str = ""
+    test_true_label: int = 0
+    epsilon: float = 0.05
+    count: int = 0
+    # TODO: test distance matrix calculation
+    Cluster.generate_distance_matrix(all_data=distribution_filtered_test_labels[test_true_label])
+
+    # TODO: Test merge abstract domain if possible
+    
+    # for index, image in enumerate(distribution_filtered_test_labels[test_true_label]):
+    #     if index == 0:
+    #         vnnlib_filename: str = write_vnnlib(data=image, 
+    #                                     data_id=index, 
+    #                                     num_classes=dataset.num_labels, 
+    #                                     true_label=test_true_label, 
+    #                                     epsilon=epsilon)
+    #         print("vnnlib_filename: ", vnnlib_filename)
+    #     else: 
+    #         vnnlib_filename: str = write_vnnlib_merge(networks=networks,
+    #                                                     data=image, 
+    #                                                     data_id=index, 
+    #                                                     num_classes=dataset.num_labels, 
+    #                                                     true_label=test_true_label, 
+    #                                                     epsilon=epsilon)
+    #         print("merged_vnnlib_filename: ", vnnlib_filename)
+
+    #     networks:NetworksStructure = extract_network_structure(onnx_filename, vnnlib_filename)
+    #     m: SCIPModel | GurobiModel = mip_verifier(solver_name="gurobi", networks=networks)
+    #     if m.get_solution_status() == "Infeasible":
+    #         print("UNSAT")
+    #     else:
+    #         print("SAT")
+
+    #     if count == 2:
+    #         break
+    #     count += 1
+
     # TODO: implement cluster analysis
+
 
 
     # *  ************************  * #

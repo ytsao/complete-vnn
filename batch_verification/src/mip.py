@@ -1,11 +1,13 @@
-from typing import Any
+from typing import Any, List
 
-from ..utils import Model
-from ..utils import SCIPModel
-from ..utils import GurobiModel
-from ..utils import NetworksStructure
-from ..utils import DataSet
-from ..utils import read_dataset
+from jax import numpy as jnp
+
+from utils import Model
+from utils import SCIPModel
+from utils import GurobiModel
+from utils import NetworksStructure
+from utils import DataSet
+from utils import read_dataset
 
 # required >= 3.12 version
 # type ModelType = SCIPModel | GurobiModel
@@ -49,25 +51,38 @@ class _Constraints():
 
     @staticmethod
     def pre_condition(m: SCIPModel | GurobiModel, networks: NetworksStructure) -> SCIPModel | GurobiModel:
+        """
+        build pre-condition constraints based on vnnlib definition.
+        """
         for id, value in enumerate(networks.pre_condition):
             m.change_variable_lb(m.solver.continue_variables[f"x_{0}_{id}"], value[0])
             m.change_variable_ub(m.solver.continue_variables[f"x_{0}_{id}"], value[1])
 
         return m
 
+    # @staticmethod
+    # def pre_condition(m: SCIPModel | GurobiModel, current_data: jnp.ndarray, epsilon: float) -> SCIPModel | GurobiModel:
+    #     """
+    #     build pre-condition constraints based on the input data (L-infinity norm).
+    #     """
+    #     for each_pixel in current_data:
+    #         value = current_data[each_pixel]
+    #         m.change_variable_lb(m.solver.continue_variables[f"x_{0}_{each_pixel}"], value - epsilon)
+    #         m.change_variable_ub(m.solver.continue_variables[f"x_{0}_{each_pixel}"], value + epsilon)
+        
+    #     return m
 
-    @staticmethod
-    def post_condition(m: SCIPModel | GurobiModel, dataset: DataSet, data_id: int, networks: NetworksStructure) -> SCIPModel | GurobiModel:
-        last_layer_id: int = networks.num_layers - 1
-        true_label: int = dataset.test_labels[data_id].argmax()
+    # @staticmethod
+    # def post_condition(m: SCIPModel | GurobiModel, dataset: DataSet, data_id: int, networks: NetworksStructure) -> SCIPModel | GurobiModel:
+    #     last_layer_id: int = networks.num_layers - 1
+    #     true_label: int = dataset.test_labels[data_id].argmax()
 
-        all_variables = [v_var for k_var, v_var in m.solver.continue_variables.items() if f"x_{last_layer_id}" in k_var]
-        target_variable = m.solver.continue_variables[f"x_{last_layer_id}_{true_label}"]
-        m.add_max_constraint(max_variable=m.solver.continue_variables["max_value"], variables=all_variables, name=f"post_condition_{data_id}")
-        m.add_constraint(express=m.solver.continue_variables["max_value"] >= target_variable + 0.000001, name=f"post_condition_{data_id}")
+    #     all_variables = [v_var for k_var, v_var in m.solver.continue_variables.items() if f"x_{last_layer_id}" in k_var]
+    #     target_variable = m.solver.continue_variables[f"x_{last_layer_id}_{true_label}"]
+    #     m.add_max_constraint(max_variable=m.solver.continue_variables["max_value"], variables=all_variables, name=f"post_condition_{data_id}")
+    #     m.add_constraint(express=m.solver.continue_variables["max_value"] >= target_variable + 0.000001, name=f"post_condition_{data_id}")
             
-
-        return m
+    #     return m
 
     @staticmethod
     def post_condition(m: SCIPModel | GurobiModel, networks: NetworksStructure) -> SCIPModel | GurobiModel:
@@ -230,7 +245,29 @@ def _create_decision_variables(m: SCIPModel | GurobiModel, networks: NetworksStr
 
     return m
 
-def mip_verifier (solver_name: str) -> SCIPModel | GurobiModel | None:
+
+def _print_results(m: SCIPModel | GurobiModel) -> None:
+    solution_status: str = m.get_solution_status()
+    if solution_status == "Infeasible":
+        print("UNSAT")
+    else:
+        print("SAT")
+        for k, v in m.solver.continue_variables.items():
+            primal_solution = m.get_primal_solution(v)
+            if primal_solution > 0:
+                print(f"{k}: {primal_solution}")
+        for k, v in m.solver.binary_variables.items():
+            primal_solution = m.get_primal_solution(v)
+            if primal_solution > 0.5 and "y" in k:
+                print(f"{k}: {primal_solution}")
+
+    return
+
+
+def mip_verifier (solver_name: str, networks: NetworksStructure) -> SCIPModel | GurobiModel | None:
+    """
+    
+    """
     m: SCIPModel | GurobiModel | None = None
     if solver_name == "scip":
         m = SCIPModel(solver=Model())
@@ -239,22 +276,27 @@ def mip_verifier (solver_name: str) -> SCIPModel | GurobiModel | None:
     else:
         raise ValueError("Invalid solver type")
     
-    # load dataset
-    dataset: DataSet = read_dataset.load_dataset(dataset_name="mnist")
-    # print("++++++++++++++++++++++++++++++++++++++++++++++")
-    # print('Train:', dataset.train_images.shape, dataset.train_labels.shape)
-    # print('Test:', dataset.test_images.shape, dataset.test_labels.shape)
-    # print("num_labels: ", dataset.num_labels)
-    # print("num_pixels: ", dataset.num_pixels)
-    # print("num_height: ", dataset.num_height)
-    # print("num_weight: ", dataset.num_weight)
-    # print("num_channel: ", dataset.num_channel)
-    # print("++++++++++++++++++++++++++++++++++++++++++++++")
+    # * load dataset
+    # * we don't need to load dataset in this function.
+    # //dataset: DataSet = read_dataset.load_dataset(dataset_name="mnist")
+    # //print("++++++++++++++++++++++++++++++++++++++++++++++")
+    # //print('Train:', dataset.train_images.shape, dataset.train_labels.shape)
+    # //print('Test:', dataset.test_images.shape, dataset.test_labels.shape)
+    # //print("num_labels: ", dataset.num_labels)
+    # //print("num_pixels: ", dataset.num_pixels)
+    # //print("num_height: ", dataset.num_height)
+    # //print("num_weight: ", dataset.num_weight)
+    # //print("num_channel: ", dataset.num_channel)
+    # //print("++++++++++++++++++++++++++++++++++++++++++++++")
 
-    # extract networks structure
+    # * extract networks structure
+    # ! There is the problem in mnist-net_256x6.onnx
+    #
     # networks: NetworksStructure = read_dataset.extract_network_structure("./batch_verification/utils/benchmarks/onnx/mnist-net_256x2.onnx", "./batch_verification/utils/benchmarks/vnnlib/prop_0_0.03.vnnlib") # UNSAT
-    networks: NetworksStructure = read_dataset.extract_network_structure("./batch_verification/utils/benchmarks/onnx/mnist-net_256x2.onnx", "./batch_verification/utils/benchmarks/vnnlib/prop_7_0.03.vnnlib")  # SAT
+    # networks: NetworksStructure = read_dataset.extract_network_structure("./batch_verification/utils/benchmarks/onnx/mnist-net_256x2.onnx", "./batch_verification/utils/benchmarks/vnnlib/prop_7_0.03.vnnlib")  # SAT
     # networks: NetworksStructure = read_dataset.extract_network_structure("./batch_verification/utils/benchmarks/onnx/test_sat.onnx", "./batch_verification/utils/benchmarks/vnnlib/test_prop.vnnlib")
+    # networks: NetworksStructure = read_dataset.extract_network_structure("./batch_verification/utils/benchmarks/onnx/mnist-net_256x4.onnx", "./batch_verification/utils/benchmarks/vnnlib/test2.vnnlib")
+    # networks: NetworksStructure = read_dataset.extract_network_structure(onnx_file, vnnlib_file)
     
     # create decision variables
     _create_decision_variables(m=m, networks=networks)
@@ -282,32 +324,6 @@ def mip_verifier (solver_name: str) -> SCIPModel | GurobiModel | None:
     m.optimize()
 
     # print results
-    solution_status: str = m.get_solution_status()
-    if solution_status == "Infeasible":
-        print("UNSAT")
-    else:
-        print("SAT")
-        for k, v in m.solver.continue_variables.items():
-            primal_solution = m.get_primal_solution(v)
-            if primal_solution > 0:
-                print(f"{k}: {primal_solution}")
-        for k, v in m.solver.binary_variables.items():
-            primal_solution = m.get_primal_solution(v)
-            if primal_solution > 0.5 and "y" in k:
-                print(f"{k}: {primal_solution}")
+    _print_results(m=m)
 
     return m
-
-
-def main() -> None:
-    print("this is main function")
-    # mip_verifier(solver_name="scip")
-    # print("scip got it")
-    mip_verifier(solver_name="gurobi")
-    print("gurobi got it")
-    return
-
-if __name__ == "__main__":
-    # python -m batch_verification.src.mip 
-    print("batch verification is starting...")
-    main()
