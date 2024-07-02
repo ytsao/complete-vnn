@@ -122,7 +122,7 @@ def main() -> str:
     epsilon: float = 0.05
     count: int = 0
     # TODO: test distance matrix calculation
-    Cluster.generate_distance_matrix(all_data=distribution_filtered_test_labels[test_true_label])
+    Cluster.generate_l1_distance_matrix(all_data=distribution_filtered_test_labels[test_true_label])
 
     # TODO: Test merge abstract domain if possible
     
