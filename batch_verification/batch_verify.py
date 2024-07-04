@@ -118,14 +118,48 @@ def main() -> str:
     # *  step 3. cluster analysis
     # *  ************************  * #
     vnnlib_filename: str = ""
-    test_true_label: int = 0
-    epsilon: float = 0.05
+    test_true_label: int = 1        # YES: 0,    NO: 2, 3
+    epsilon: float = 0.03
     count: int = 0
-    # TODO: test distance matrix calculation
-    Cluster.generate_l1_distance_matrix(all_data=distribution_filtered_test_labels[test_true_label])
+    distance_matrix: jnp.ndarray
+    distance_matrix = Cluster.generate_distance_matrix(all_data=distribution_filtered_test_labels[test_true_label], distance_type="l2", chunk_size=100)  # ! out of memory
+
+    # TODO: find the closet data
+    the_closet_data: int = Cluster.greedy(distance_matrix=distance_matrix, num_clusters=2)
+    print("the_closet_data: ", the_closet_data)
 
     # TODO: Test merge abstract domain if possible
-    
+    test_set_inputs: List[int] = [0, the_closet_data]
+    for id in test_set_inputs:
+        if id == 0:
+        # if True:
+            vnnlib_filename: str = write_vnnlib(data=distribution_filtered_test_labels[test_true_label][id], 
+                                                data_id=id, 
+                                                num_classes=dataset.num_labels, 
+                                                true_label=test_true_label, 
+                                                epsilon=epsilon)
+            print("vnnlib_filename: ", vnnlib_filename)
+            print("------------------------------------------------------")
+            networks: NetworksStructure = extract_network_structure(onnx_filename, vnnlib_filename)
+            continue
+        else:
+            print("id: ", id)
+            vnnlib_filename: str = write_vnnlib_merge(networks=networks,
+                                                    data=distribution_filtered_test_labels[test_true_label][id], 
+                                                    data_id=id, 
+                                                    num_classes=dataset.num_labels, 
+                                                    true_label=test_true_label, 
+                                                    epsilon=epsilon)
+            print("merged_vnnlib_filename: ", vnnlib_filename)
+        
+        print("1jijojoijoi")
+        networks: NetworksStructure = extract_network_structure(onnx_filename, vnnlib_filename)
+        m: SCIPModel | GurobiModel = mip_verifier(solver_name="gurobi", networks=networks)
+        if m.get_solution_status() == "Infeasible":
+            print("UNSAT")
+        else:
+            print("SAT")
+
     # for index, image in enumerate(distribution_filtered_test_labels[test_true_label]):
     #     if index == 0:
     #         vnnlib_filename: str = write_vnnlib(data=image, 
