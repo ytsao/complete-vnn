@@ -125,11 +125,11 @@ def main() -> str:
     distance_matrix = Cluster.generate_distance_matrix(all_data=distribution_filtered_test_labels[test_true_label], distance_type="l2", chunk_size=100)  # ! out of memory
 
     # TODO: find the closet data
-    the_closet_data: int = Cluster.greedy(distance_matrix=distance_matrix, num_clusters=2)
-    print("the_closet_data: ", the_closet_data)
+    similarity_data: List[int] = Cluster.greedy(distance_matrix=distance_matrix, num_clusters=2)
+    print("similarity_data: ", similarity_data)
 
     # TODO: Test merge abstract domain if possible
-    test_set_inputs: List[int] = [0, the_closet_data]
+    test_set_inputs: List[int] = [0, similarity_data[1], similarity_data[2]]
     for id in test_set_inputs:
         if id == 0:
         # if True:
@@ -142,6 +142,18 @@ def main() -> str:
             print("------------------------------------------------------")
             networks: NetworksStructure = extract_network_structure(onnx_filename, vnnlib_filename)
             continue
+        elif id == similarity_data[1]:
+            print("id: ", id)
+            vnnlib_filename: str = write_vnnlib_merge(networks=networks,
+                                                    data=distribution_filtered_test_labels[test_true_label][id], 
+                                                    data_id=id, 
+                                                    num_classes=dataset.num_labels, 
+                                                    true_label=test_true_label, 
+                                                    epsilon=epsilon)
+            print("merged_vnnlib_filename: ", vnnlib_filename)
+            print("*********************************************************")
+            networks: NetworksStructure = extract_network_structure(onnx_filename, vnnlib_filename)
+            continue
         else:
             print("id: ", id)
             vnnlib_filename: str = write_vnnlib_merge(networks=networks,
@@ -152,7 +164,7 @@ def main() -> str:
                                                     epsilon=epsilon)
             print("merged_vnnlib_filename: ", vnnlib_filename)
         
-        print("1jijojoijoi")
+        
         networks: NetworksStructure = extract_network_structure(onnx_filename, vnnlib_filename)
         m: SCIPModel | GurobiModel = mip_verifier(solver_name="gurobi", networks=networks)
         if m.get_solution_status() == "Infeasible":

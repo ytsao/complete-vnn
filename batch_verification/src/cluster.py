@@ -104,7 +104,7 @@ class Cluster:
     
 
     @staticmethod
-    def greedy(distance_matrix: jnp.ndarray, num_clusters: int = 2) -> int:
+    def greedy(distance_matrix: jnp.ndarray, num_clusters: int = 2) -> List[int]:
         """
         greedy algorithm to cluster data points.
 
@@ -113,10 +113,8 @@ class Cluster:
             - default data is first one.
         """
         reference_data: int = 0
-        the_closest_data: int = jnp.argmin(distance_matrix[reference_data, 1:])
-        # print(distance_matrix[reference_data, 1:])
-        # print("the_closest_data: ", the_closest_data + 1)
-        # print("distance: ", distance_matrix[reference_data, the_closest_data + 1])
+        similarity_data = jnp.argsort(distance_matrix[reference_data])
+        
 
-        return the_closest_data + 1
+        return similarity_data.tolist()
     
