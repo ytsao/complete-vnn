@@ -35,21 +35,6 @@ class _ObjectiveFunction():
 
 class _Constraints():
     @staticmethod
-    def adversarial_distance(m: SCIPModel | GurobiModel, dataset: DataSet, data_id: int, networks: NetworksStructure) -> SCIPModel | GurobiModel:
-        for each_pixel in range(dataset.num_pixels):
-            value = dataset.test_images[data_id][each_pixel]
-            variable_x = m.solver.continue_variables[f"x_0_{each_pixel}"]
-            expression = m.solver.continue_variables["robustness_property"] >= value - variable_x
-            m.add_constraint(express=expression, name=f"adversarial_distance1_{data_id}_{each_pixel}")
-
-            expression = m.solver.continue_variables["robustness_property"] >= variable_x - value
-            m.add_constraint(express=expression, name=f"adversarial_distance2_{data_id}_{each_pixel}")
-
-
-        return m
-
-
-    @staticmethod
     def pre_condition(m: SCIPModel | GurobiModel, networks: NetworksStructure) -> SCIPModel | GurobiModel:
         """
         build pre-condition constraints based on vnnlib definition.
@@ -308,7 +293,6 @@ def mip_verifier (solver_name: str, networks: NetworksStructure) -> SCIPModel | 
     _Constraints.pre_condition(m=m, networks=networks)
     # _Constraints.post_condition(m=m, dataset=dataset, data_id=0, networks=networks)
     _Constraints.post_condition(m=m, networks=networks)
-    # _Constraints.adversarial_distance(m=m, dataset=dataset, data_id=0, networks=networks) # it should work
     _Constraints.feedforward_networks(m=m, networks=networks)
     # _Constraints.convolutional_networks(m=m)
     # _Constraints.residual_networks(m=m)

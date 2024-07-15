@@ -82,6 +82,7 @@ class SCIPModel(MIPOptimizer):
         """
         solve MIP model
         """
+        self.solver._model.setParam("limits/solutions", 1)
         self.solver._model.optimize()
 
         return 
@@ -124,6 +125,8 @@ class SCIPModel(MIPOptimizer):
         if the solution status is infeasible or unbounded, you might not get the primal/dual solutions.
         """        
         msgdict: dict = {"optimal": "Optimal",
-                         "infeasible": "Infeasible", "unbounded": "Unbounded"}
+                         "infeasible": "Infeasible", 
+                         "unbounded": "Unbounded",
+                         "sollimit": "Feasible"}
 
         return msgdict[self.solver._model.getStatus()]
