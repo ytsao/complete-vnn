@@ -52,6 +52,11 @@ class Cluster:
     @staticmethod
     def generate_distance_matrix(all_data: List[jnp.ndarray], distance_type: str = "l1", chunk_size: int = 100) -> jnp.ndarray:
         
+        # TODO: add more distance types.
+        @jit
+        def compute_l0_distance(difference: jnp.ndarray) -> jnp.ndarray:
+            return jnp.count_nonzero(difference, axis=-1)
+
         @jit 
         def compute_l1_distance(difference: jnp.ndarray) -> jnp.ndarray:
             return jnp.sum(jnp.abs(difference), axis=-1)
