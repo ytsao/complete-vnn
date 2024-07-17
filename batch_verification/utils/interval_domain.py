@@ -3,12 +3,13 @@ from typing import Any, Set
 
 from abstract_interpretation import AbstractDomain
 
+
 class BoxDomain(AbstractDomain):
 
     num_boxes: int = 0
 
-    def __init__(self, 
-                 _lower_bound: float = sys.float_info.min, 
+    def __init__(self,
+                 _lower_bound: float = sys.float_info.min,
                  _upper_bound: float = sys.float_info.max):
         super().__init__(_lower_bound=_lower_bound, _upper_bound=_upper_bound)
         self.name = f"box_{BoxDomain.num_boxes}"
@@ -16,24 +17,20 @@ class BoxDomain(AbstractDomain):
 
         BoxDomain.num_boxes += 1
 
-
     def abstract_transformer(self):
         pass
-
 
     def add(self, other: Any) -> Any:
         self.lower_bound += other.lower_bound
         self.upper_bound += other.upper_bound
 
         return
-    
 
     def substract(self, other: Any) -> Any:
         self.lower_bound -= other.lower_bound
         self.upper_bound -= other.upper_bound
 
-        return 
-    
+        return
 
     def multiply(self, other: Any) -> Any:
         B: Set = {
@@ -45,9 +42,8 @@ class BoxDomain(AbstractDomain):
 
         self.lower_bound = min(B)
         self.upper_bound = max(B)
-        
-        return 
-    
+
+        return
 
     def meet(self, other: Any) -> Any:
         result: BoxDomain = BoxDomain()
@@ -58,7 +54,6 @@ class BoxDomain(AbstractDomain):
         BoxDomain.num_boxes += 1
 
         return result
-    
 
     def join(self, other: Any) -> Any:
         result: BoxDomain = BoxDomain()
@@ -73,14 +68,16 @@ class BoxDomain(AbstractDomain):
 
 if __name__ == "__main__":
     # * test BoxDomain
-    box_domain1: BoxDomain = BoxDomain.from_lower_and_upper_bound(_lower_bound=-5.0, _upper_bound=1.0)
-    box_domain2: BoxDomain = BoxDomain.from_lower_and_upper_bound(_lower_bound=1.0, _upper_bound=2.0)
+    box_domain1: BoxDomain = BoxDomain.from_lower_and_upper_bound(
+        _lower_bound=-5.0, _upper_bound=1.0)
+    box_domain2: BoxDomain = BoxDomain.from_lower_and_upper_bound(
+        _lower_bound=1.0, _upper_bound=2.0)
     print("name: ", box_domain1.name)
     print("name: ", box_domain2.name)
     print("---------------------------------------------------------------")
     print("id: ", box_domain1.id)
     print("id: ", box_domain2.id)
-    
+
     box_domain1.add(other=box_domain2)
     print("ADD:")
     print("box_domain1.lower_bound: ", box_domain1.lower_bound)
@@ -110,6 +107,5 @@ if __name__ == "__main__":
     print("box_domain1.lower_bound: ", box_domain1.lower_bound)
     print("box_domain1.upper_bound: ", box_domain1.upper_bound)
     print("---------------------------------------------------------------")
-    
 
     print("BoxDomain test finished.")

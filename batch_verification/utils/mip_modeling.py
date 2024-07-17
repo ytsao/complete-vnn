@@ -15,12 +15,17 @@ except ImportError:
 @dataclass
 class Model:
     solver_name: str = field(default="scip")
-    _model: gp.Model | pyscipopt.Model = field(init=False) # from gurobi or scip module, only for gurobi_modeling or scip_modeling used
-    binary_variables: defaultdict[Dict] = field(default_factory=lambda: defaultdict(Dict))
-    integer_variables: defaultdict[Dict] = field(default_factory=lambda: defaultdict(Dict))
-    continue_variables: defaultdict[Dict] = field(default_factory=lambda: defaultdict(Dict))
+    # from gurobi or scip module, only for gurobi_modeling or scip_modeling used
+    _model: gp.Model | pyscipopt.Model = field(init=False)
+    binary_variables: defaultdict[Dict] = field(
+        default_factory=lambda: defaultdict(Dict))
+    integer_variables: defaultdict[Dict] = field(
+        default_factory=lambda: defaultdict(Dict))
+    continue_variables: defaultdict[Dict] = field(
+        default_factory=lambda: defaultdict(Dict))
 
-    timelimits: int = field(default=60) # default: 1 minute
+    timelimits: int = field(default=60)  # default: 1 minute
+
 
 class MIPOptimizer(ABC):
 

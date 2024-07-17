@@ -1,3 +1,7 @@
+from .parameters_networks import DataSet
+from .parameters_networks import NetworksStructure
+import jax.numpy as jnp
+import tensorflow_datasets as tfds
 from typing import List, Tuple
 
 from vnnlib import compat
@@ -8,18 +12,13 @@ import numpy as np
 
 import tensorflow as tf
 tf.config.set_visible_devices([], device_type='GPU')
-import tensorflow_datasets as tfds
-import jax.numpy as jnp
-
-from .parameters_networks import NetworksStructure
-from .parameters_networks import DataSet
 
 
 def _read_onnx_model(onnx_file_path: str) -> onnx.ModelProto:
     return onnx.load(onnx_file_path)
 
 
-def _get_num_inputs(onnx_model: onnx.ModelProto) -> int: 
+def _get_num_inputs(onnx_model: onnx.ModelProto) -> int:
     sess = ort.InferenceSession(onnx_model.SerializeToString())
     inputs = [i.name for i in sess.get_inputs()]
 
@@ -73,7 +72,7 @@ def _get_weight_matrix(onnx_model: onnx.ModelProto) -> List[List[List[float]]]:
             weights.append(array.transpose())
 
     return weights
-     
+
 
 def _get_bias_vector(onnx_model: onnx.ModelProto) -> List[List[float]]:
     biases: List[List[float]] = []
@@ -104,7 +103,8 @@ def load_dataset(dataset_name: str) -> DataSet:
 
     data_dir = f"./dataset/{dataset_name}"
 
-    data, info = tfds.load(name=dataset_name, batch_size=-1, data_dir=data_dir, with_info=True)
+    data, info = tfds.load(name=dataset_name, batch_size=-1,
+                           data_dir=data_dir, with_info=True)
     data = tfds.as_numpy(data)
     train_data, test_data = data['train'], data['test']
     num_labels = info.features['label'].num_classes
@@ -134,7 +134,6 @@ def load_dataset(dataset_name: str) -> DataSet:
     dataset.num_weight = w
     dataset.num_channel = c
 
-
     return dataset
 
 
@@ -145,12 +144,11 @@ def extract_network_structure(onnx_file_path: str, vnnlib_file_path: str) -> Net
     vnnlib_spec = _read_vnnlib_spec(vnnlib_file_path, num_inputs, num_outputs)
     pre_condition = vnnlib_spec[0][0]
     post_condition = vnnlib_spec[0][1]
-    
 
     n = NetworksStructure()
     n.onnx_filename = onnx_file_path
     n.vnnlib_filename = vnnlib_file_path
-    
+
     n.num_inputs = num_inputs
     n.num_outputs = num_outputs
 
@@ -170,12 +168,14 @@ def extract_network_structure(onnx_file_path: str, vnnlib_file_path: str) -> Net
 
 
 def _test():
-    onnx_model: onnx.ModelProto = _read_onnx_model("./benchmarks/onnx/ACASXU_run2a_1_1_batch_2000.onnx")
+    onnx_model: onnx.ModelProto = _read_onnx_model(
+        "./benchmarks/onnx/ACASXU_run2a_1_1_batch_2000.onnx")
     num_inputs: int = _get_num_inputs(onnx_model)
     num_outputs: int = _get_num_outputs(onnx_model)
     print("num_inputs: ", num_inputs)
     print("num_outputs: ", num_outputs)
-    vnnlib_spec = _read_vnnlib_spec("./benchmarks/vnnlib/prop_7.vnnlib", num_inputs, num_outputs)
+    vnnlib_spec = _read_vnnlib_spec(
+        "./benchmarks/vnnlib/prop_7.vnnlib", num_inputs, num_outputs)
     # vnnlib_spec = _read_vnnlib_spec("./benchmarks/vnnlib/test_small.vnnlib", num_inputs, num_outputs)
 
     input_region = vnnlib_spec[0][0]
@@ -194,7 +194,7 @@ def _test():
     print("test")
     print(type(vnnlib_spec[0][1][0]))
     print(len(vnnlib_spec[0][1][0]))
-    print(vnnlib_spec[0][1][0][0]) # first condition's lhs
+    print(vnnlib_spec[0][1][0][0])  # first condition's lhs
     print("===================================")
     print(vnnlib_spec[0][1][0][1])  # first condition's rhs
 
@@ -210,6 +210,7 @@ def _test():
 
 if __name__ == "__main__":
     # _test()
-    networks: NetworksStructure = extract_network_structure("./benchmarks/onnx/ACASXU_run2a_1_1_batch_2000.onnx", "./benchmarks/vnnlib/prop_7.vnnlib")
+    networks: NetworksStructure = extract_network_structure(
+        "./benchmarks/onnx/ACASXU_run2a_1_1_batch_2000.onnx", "./benchmarks/vnnlib/prop_7.vnnlib")
     print(networks)
     print("Done!")
