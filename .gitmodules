@@ -1,0 +1,3 @@
+[submodule "batch_verification/src/alpha-beta-CROWN"]
+	path = batch_verification/src/alpha-beta-CROWN
+	url = https://github.com/Verified-Intelligence/alpha-beta-CROWN.git
