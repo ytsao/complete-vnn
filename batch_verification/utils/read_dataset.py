@@ -1,9 +1,9 @@
 from typing import List, Tuple
 
-import onnx.model_container
 from vnnlib import compat
 import onnx
 import onnxruntime as ort
+from onnx import numpy_helper
 import numpy as np
 
 import tensorflow as tf
@@ -51,7 +51,7 @@ def _get_layer_to_layer(onnx_model: onnx.ModelProto) -> List[Tuple[int, int]]:
     layer_to_layer: List[Tuple[int, int]] = []
 
     for initializer in onnx_model.graph.initializer:
-        array: np.ndarray = onnx.numpy_helper.to_array(initializer)
+        array: np.ndarray = numpy_helper.to_array(initializer)
 
         if "MatMul" in initializer.name:
             layer_to_layer.append(array.shape)

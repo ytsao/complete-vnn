@@ -1,6 +1,7 @@
 from typing import List, Dict
 import os
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 from collections import defaultdict
 
 import jax.numpy as jnp
@@ -21,10 +22,6 @@ from utils.gurobi_modeling import GurobiModel
 # * algorithms 
 from src.cluster import Cluster
 from src.mip import mip_verifier
-
-from auto_LiRPA import BoundedModule, BoundedTensor
-from auto_LiRPA.perturbations import PerturbationLpNorm
-from auto_LiRPA.utils import Flatten
 
 
 # TODO: implement verification algorithm in different ways
@@ -62,7 +59,8 @@ def main() -> str:
     dataset: DataSet = load_dataset("mnist")
     onnx_filename: str = "./utils/benchmarks/onnx/mnist-net_256x2.onnx"
     vnnlib_filename: str = "./utils/benchmarks/vnnlib/prop_7_0.03.vnnlib"
-    networks: NetworksStructure = extract_network_structure(onnx_filename, vnnlib_filename)
+    # networks: NetworksStructure = extract_network_structure(onnx_filename, vnnlib_filename)
+    print("step 0: read the input files")
 
     # *  ************************  * #
     # *  step 1. filter correct classification results from testing dataset.
@@ -70,6 +68,7 @@ def main() -> str:
     session = ort.InferenceSession(onnx_filename, providers=ort.get_available_providers())
     input_name = session.get_inputs()[0].name
     output_name = session.get_outputs()[0].name
+    print("step 1: filter correct classification results from testing dataset")
 
     # *  =======================  * #
     # *  training dataset part
@@ -130,6 +129,7 @@ def main() -> str:
     epsilon: float = 0.03
     count: int = 0
     distance_matrix: jnp.ndarray
+    print(f"number of testing images: {len(distribution_filtered_test_labels[test_true_label])}")
     distance_matrix = Cluster.generate_distance_matrix(all_data=distribution_filtered_test_labels[test_true_label], distance_type="l2", chunk_size=100)  # ! out of memory
 
     # * find the similar data
@@ -137,59 +137,52 @@ def main() -> str:
     print("similarity_data: ", similarity_data)
 
     # TODO: Test merge abstract domain if possible
-    test_set_inputs: List[int] = [similarity_data[0], similarity_data[1]]
+    test_set_inputs: List[int] = similarity_data
     # test_set_inputs: List[int] = [similarity_data[0], similarity_data[1], similarity_data[2], similarity_data[3]]
     # test_set_inputs: List[int] = [similarity_data[3], similarity_data[len(similarity_data) - 1]]
     for id in test_set_inputs:
-
         if type_of_property == "meet":
-            print("meet")
-            if id != test_set_inputs[len(test_set_inputs) - 1]:
+            if id == test_set_inputs[0]:
             # if True:
                 vnnlib_filename: str = write_vnnlib(data=distribution_filtered_test_labels[test_true_label][id], 
                                                     data_id=id, 
                                                     num_classes=dataset.num_labels, 
                                                     true_label=test_true_label, 
                                                     epsilon=epsilon)
-                print("vnnlib_filename: ", vnnlib_filename)
-                print("------------------------------------------------------")
-                networks: NetworksStructure = extract_network_structure(onnx_filename, vnnlib_filename)
-                continue
             else:
-                print("id: ", id)
+                os.remove(vnnlib_filename)
                 vnnlib_filename: str = write_vnnlib_merge(networks=networks,
                                                         data=distribution_filtered_test_labels[test_true_label][id], 
                                                         data_id=id, 
                                                         num_classes=dataset.num_labels, 
                                                         true_label=test_true_label, 
                                                         epsilon=epsilon)
-                print("merged_vnnlib_filename: ", vnnlib_filename)
         elif type_of_property == "join":
-            print("join")
-            if id != test_set_inputs[len(test_set_inputs) - 1]:
+            if id == test_set_inputs[0]:
             # if True:
                 vnnlib_filename: str = write_vnnlib(data=distribution_filtered_test_labels[test_true_label][id], 
                                                     data_id=id, 
                                                     num_classes=dataset.num_labels, 
                                                     true_label=test_true_label, 
                                                     epsilon=epsilon)
-                print("vnnlib_filename: ", vnnlib_filename)
-                print("------------------------------------------------------")
-                networks: NetworksStructure = extract_network_structure(onnx_filename, vnnlib_filename)
-                continue
             else:
-                print("id: ", id)
+                os.remove(vnnlib_filename)
                 vnnlib_filename: str = write_vnnlib_merge(networks=networks,
                                                         data=distribution_filtered_test_labels[test_true_label][id], 
                                                         data_id=id, 
                                                         num_classes=dataset.num_labels, 
                                                         true_label=test_true_label, 
                                                         epsilon=epsilon)
-                print("merged_vnnlib_filename: ", vnnlib_filename)
         
-        
+        # * update networks by new vnnlib
         networks: NetworksStructure = extract_network_structure(onnx_filename, vnnlib_filename)
-        m: SCIPModel | GurobiModel = mip_verifier(solver_name="scip", networks=networks)
+        if id != test_set_inputs[len(test_set_inputs) - 1]:
+            continue
+        
+
+        print("------------------------------------------------------")
+        print("start verifying ...")
+        m: SCIPModel | GurobiModel = mip_verifier(solver_name="gurobi", networks=networks)
         counter_example: List[float] = []
         if m.get_solution_status() == "Infeasible":
             print("UNSAT")
@@ -259,5 +252,5 @@ def main() -> str:
 
 if __name__ == "__main__":
     print("batch verification is starting...")
-    # main()
-    verify()
+    main()
+    # verify()
