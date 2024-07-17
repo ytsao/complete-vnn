@@ -1,15 +1,3 @@
-[submodule "batch_verification/src/alpha-beta-CROWN"]
-	path = batch_verification/src/alpha-beta-CROWN
-	url = https://github.com/Verified-Intelligence/alpha-beta-CROWN.git
-[submodule "batch_verification/batch_verification/alpha-beta-CROWN"]
-	path = batch_verification/batch_verification/alpha-beta-CROWN
-	url = git@github.com:Verified-Intelligence/alpha-beta-CROWN.git
-[submodule "batch_verification/alpha-beta-CROWN"]
-	path = batch_verification/alpha-beta-CROWN
-	url = git@github.com:Verified-Intelligence/alpha-beta-CROWN.git
 [submodule "batch_verification/auto_LiRPA"]
 	path = batch_verification/auto_LiRPA
-	url = https://github.com/Verified-Intelligence/auto_LiRPA
-[submodule "batch_verification/complete_verifier"]
-	path = batch_verification/complete_verifier
-	url = https://github.com/Verified-Intelligence/alpha-beta-CROWN/complete_verifier
+	url = https://github.com/Verified-Intelligence/auto_LiRPA.git
