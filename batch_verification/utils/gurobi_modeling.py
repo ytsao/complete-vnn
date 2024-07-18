@@ -106,7 +106,7 @@ class GurobiModel(MIPOptimizer):
         """
         # self.solver._model.setParam(GRB.Param.Presolve, 0)
         # self.solver._model.setParam(GRB.Param.OptimalityTol, 1e-9)
-        self.solver._model.setParam(GRB.Param.SolutionLimit, 1)
+        # self.solver._model.setParam(GRB.Param.SolutionLimit, 1)
         self.solver._model.optimize()
 
         return
