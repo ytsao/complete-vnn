@@ -2,12 +2,13 @@ from typing import Any, List
 
 from jax import numpy as jnp
 
-from utils import Model
-from utils import SCIPModel
-from utils import GurobiModel
-from utils import NetworksStructure
-from utils import DataSet
-from utils import read_dataset
+from util import Model
+from util import SCIPModel
+from util import GurobiModel
+from util import NetworksStructure
+from util import DataSet
+from util import read_dataset
+from util.log import Logger
 
 # required >= 3.12 version
 # type ModelType = SCIPModel | GurobiModel
@@ -16,6 +17,8 @@ from utils import read_dataset
 class _ObjectiveFunction():
     @staticmethod
     def robustness_property(m: SCIPModel | GurobiModel) -> SCIPModel | GurobiModel:
+        Logger.info(messages="Create objective function")
+        
         robustness_variable = m.solver.continue_variables["robustness_property"]
         max_variable = m.solver.continue_variables["max_value"]
 
@@ -24,6 +27,8 @@ class _ObjectiveFunction():
             expression += 2 * value
 
         m.add_objective_function(express=expression, sense="minimize")
+
+        Logger.info(messages="Objective function is created")
 
         return m
 
@@ -40,11 +45,15 @@ class _Constraints():
         """
         build pre-condition constraints based on vnnlib definition.
         """
+        Logger.info(messages="Create pre-condition constraints")
+
         for id, value in enumerate(networks.pre_condition):
             m.change_variable_lb(
                 m.solver.continue_variables[f"x_{0}_{id}"], value[0])
             m.change_variable_ub(
                 m.solver.continue_variables[f"x_{0}_{id}"], value[1])
+            
+        Logger.info(messages="Pre-condition constraints are created")
 
         return m
 
@@ -78,6 +87,7 @@ class _Constraints():
         we don't need to consider negative value in post-condition.
         this function is used to build post-condition constraints based on vnnlib definition.
         """
+        Logger.info(messages="Create post-condition constraints")
 
         num_post_condition: int = len(networks.post_condition)
         last_layer_id: int = networks.num_layers - 1
@@ -122,16 +132,22 @@ class _Constraints():
                 m.add_constraint(express=lhs <= rhs,
                                  name=f"post_condition2_{j}")
 
+        Logger.info(messages="Post-condition constraints are created")
+
         return
 
     @staticmethod
     def feedforward_networks(m: SCIPModel | GurobiModel, networks: NetworksStructure) -> SCIPModel | GurobiModel:
+        Logger.info(messages="Create feedforward constraints")
+
         for k, Nk in enumerate(networks.layer_to_layer):
             for j in range(Nk[1]):
                 expression = sum(networks.matrix_weights[k][i][j] * m.solver.continue_variables[f"x_{k}_{i}"] for i in range(
                     Nk[0])) + networks.vector_bias[k][j] == m.solver.continue_variables[f"x_{k+1}_{j}"] - m.solver.continue_variables[f"s_{k+1}_{j}"]
                 m.add_constraint(express=expression,
                                  name=f"feedforward_{k}_{j}")
+
+        Logger.info(messages="Feedforward constraints are created")
 
         return m
 
@@ -155,6 +171,8 @@ class _Constraints():
 
     @staticmethod
     def relu(m: SCIPModel | GurobiModel, networks: NetworksStructure) -> SCIPModel | GurobiModel:
+        Logger.info(messages="Create ReLU constraints")
+
         for k, Nk in enumerate(networks.layer_to_layer):
             if k == 0:
                 continue
@@ -182,11 +200,14 @@ class _Constraints():
                         m.solver.binary_variables[f"z_{k+1}_{nk}"]
                     m.add_constraint(express=expression,
                                      name=f"relu_{k+1}_{nk}_2")
+        
+        Logger.info(messages="ReLU constraints are created")
 
         return m
 
 
 def _create_decision_variables(m: SCIPModel | GurobiModel, networks: NetworksStructure) -> SCIPModel | GurobiModel:
+    Logger.info(messages="Create decision variables")
 
     m.add_variable(lb=0, ub=None, vtype="C", name="robustness_property")
 
@@ -244,6 +265,8 @@ def _create_decision_variables(m: SCIPModel | GurobiModel, networks: NetworksStr
     # max function
     m.add_variable(lb=0, ub=None, vtype="C", name="max_value")
 
+    Logger.info(messages="Decision variables are created")
+
     return m
 
 
@@ -271,10 +294,13 @@ def mip_verifier(solver_name: str, networks: NetworksStructure) -> SCIPModel | G
     """
     m: SCIPModel | GurobiModel | None = None
     if solver_name == "scip":
+        Logger.info(messages="SCIP solver is used.")
         m = SCIPModel(solver=Model())
     elif solver_name == "gurobi":
+        Logger.info(messages="Gurobi solver is used.")
         m = GurobiModel(solver=Model(solver_name="gurobi"))
     else:
+        Logger.error(messages="Invalid solver type")
         raise ValueError("Invalid solver type")
 
     # * load dataset

@@ -6,9 +6,9 @@ from jax import jit
 import jax.numpy as jnp
 from jax.experimental.host_callback import call
 
-from utils import read_dataset
-from utils.parameters_networks import NetworksStructure
-from utils.parameters_networks import DataSet
+from util import read_dataset
+from util.parameters_networks import NetworksStructure
+from util.parameters_networks import DataSet
 
 
 class Cluster:

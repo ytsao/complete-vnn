@@ -1,2 +1,5 @@
 {
+    "python.analysis.extraPaths": [
+        "./batch_verification/alpha-beta-CROWN/complete_verifier"
+    ]
 }

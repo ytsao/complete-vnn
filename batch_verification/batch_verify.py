@@ -1,33 +1,66 @@
-from src.mip import mip_verifier
-from src.cluster import Cluster
-from utils.gurobi_modeling import GurobiModel
-from utils.scip_modeling import SCIPModel
-from utils.mip_modeling import Model
-from utils.read_dataset import extract_network_structure
-from utils.read_dataset import load_dataset
-from utils.parameters_networks import NetworksStructure
-from utils.parameters_networks import DataSet
-from utils.write_vnnlib import write_vnnlib, write_vnnlib_merge, export_vnnlib
-from matplotlib import pyplot as plt
-import onnxruntime as ort
-import numpy as np
-import jax.numpy as jnp
 from collections import defaultdict
 from typing import List, Dict
 import os
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import argparse
+
+from matplotlib import pyplot as plt
+import onnxruntime as ort
+import numpy as np
+import jax.numpy as jnp
+
+from src.mip import mip_verifier
+from src.cluster import Cluster
+
+# from crown import crown_verifier
+from crown import crown_verifier
+from util.gurobi_modeling import GurobiModel
+from util.scip_modeling import SCIPModel
+from util.mip_modeling import Model
+from util.read_dataset import extract_network_structure
+from util.read_dataset import load_dataset
+from util.parameters_networks import NetworksStructure
+from util.parameters_networks import DataSet
+from util.write_vnnlib import write_vnnlib, write_vnnlib_merge, export_vnnlib
+from util.log import Logger
 
 
 # * algorithms
 
 
 # TODO: implement verification algorithm in different ways
-def verify() -> None:
-    return
+def verify(solver: str, onnx_filename: str, vnnlib_filename: str) -> str:
+    """
+    Verification algorithm:
+
+    Support: MIP (SCIP, Gurobi), CROWN
+    """
+    result: str = "UNSAT"
+
+    if solver == "scip" or solver == "gurobi":
+        Logger.info(messages=f"Verification Algorithm is MIP solver ({solver})")
+        networks: NetworksStructure = extract_network_structure(onnx_file_path=onnx_filename, 
+                                                                vnnlib_file_path=vnnlib_filename)
+        m: SCIPModel | GurobiModel = mip_verifier(solver_name=solver,
+                                                  networks=networks)
+        
+        if m.get_solution_status() == "Infeasible":
+            result = "UNSAT"
+        else:
+            result = "SAT"
+    elif solver == "crown":
+        Logger.info(messages="Verification Algorithm is CROWN")
+
+        result = crown_verifier(onnx_file_path=onnx_filename,
+                                vnnlib_file_path=vnnlib_filename)
+    
+    Logger.info(messages=f"verification result: {result}")
+
+    return result
 
 
-def main() -> str:
+def debug(solver: str) -> str:
     """
     Batch verification algorithm: 
         step 0: read the input files (onnx, image files)
@@ -48,26 +81,28 @@ def main() -> str:
         1. Reduce training data to train robust NN.
         2. Accelerate overall verification process.
         3. When we retrain NN, we have to verify the property again, so this might help to reduce the cost.
+    
+    Logger:
+        debugging: # * for show the intermediate results.
+        info: # * for show the main results.
+        error: # * for show the error messages.
     """
-    result: str = "UNSAT"
-
     # *  ************************  * #
     # *  step 0. read the input files
     # *  ************************  * #
+    Logger.info(messages="step 0: read the input files")
     dataset: DataSet = load_dataset("mnist")
-    onnx_filename: str = "./utils/benchmarks/onnx/mnist-net_256x2.onnx"
-    vnnlib_filename: str = "./utils/benchmarks/vnnlib/prop_7_0.03.vnnlib"
+    onnx_filename: str = "./util/benchmarks/onnx/mnist-net_256x2.onnx"
+    vnnlib_filename: str = "./util/benchmarks/vnnlib/prop_7_0.03.vnnlib"
     # networks: NetworksStructure = extract_network_structure(onnx_filename, vnnlib_filename)
-    print("step 0: read the input files")
 
     # *  ************************  * #
     # *  step 1. filter correct classification results from testing dataset.
     # *  ************************  * #
-    session = ort.InferenceSession(
-        onnx_filename, providers=ort.get_available_providers())
+    Logger.info(messages="step 1: filter correct classification results from testing dataset")
+    session = ort.InferenceSession(onnx_filename, providers=ort.get_available_providers())
     input_name = session.get_inputs()[0].name
     output_name = session.get_outputs()[0].name
-    print("step 1: filter correct classification results from testing dataset")
 
     # *  =======================  * #
     # *  training dataset part
@@ -75,7 +110,7 @@ def main() -> str:
     # filter_train_images: List[jnp.ndarray] = []
     # filter_train_labels: List[int] = []
     # num_train_images: int = len(dataset.train_images)
-    # print("number of images in training dataset: ", num_train_images)
+    # Logger.debugging(messages=f"number of images in training dataset: {len(dataset.train_images)}")
     # for data_id in range(num_train_images):
     #     inference_result = session.run([output_name],
     #                                    {input_name: dataset.train_images[data_id].astype(jnp.float32).reshape(1, dataset.num_pixels, 1)})[0]
@@ -84,8 +119,8 @@ def main() -> str:
     #     if inference_label == true_label:
     #         filter_train_images.append(dataset.train_images[data_id])
     #         filter_train_labels.append(true_label)
-    # print("filter_train_images: ", len(filter_train_images))
-    # print("filter_train_labels: ", len(filter_train_labels))
+    # Logger.debugging(messages=f"filter_train_images: {len(filter_train_images)}")
+    # Logger.debugging(messages=f"filter_train_labels: {len(filter_train_labels)}")
 
     # *  =======================  * #
     # *  testing dataset part
@@ -93,7 +128,7 @@ def main() -> str:
     filterd_test_images: List[jnp.ndarray] = []
     filterd_test_labels: List[int] = []
     num_test_images: int = len(dataset.test_images)
-    print("number of images in testing dataset: ", num_test_images)
+    Logger.debugging(messages=f"number of images in testing dataset: {num_test_images}")
     for data_id in range(num_test_images):
         inference_result = session.run([output_name],
                                        {input_name: dataset.test_images[data_id].astype(jnp.float32).reshape(1, dataset.num_pixels, 1)})[0]
@@ -103,9 +138,9 @@ def main() -> str:
             filterd_test_images.append(dataset.test_images[data_id])
             filterd_test_labels.append(true_label)
 
-    print("filterd_test_images: ", len(filterd_test_images))
-    print("filterd_test_labels: ", len(filterd_test_labels))
-    print("test accuracy: ", len(filterd_test_images) / num_test_images)
+    Logger.debugging(messages=f"filterd_test_images: {len(filterd_test_images)}")
+    Logger.debugging(messages=f"filterd_test_labels: {len(filterd_test_labels)}")
+    Logger.debugging(messages=f"test accuracy: {len(filterd_test_images) / num_test_images}")
 
     # *  ************************  * #
     # *  step 2. based on each label, separate into different groups.
@@ -114,11 +149,9 @@ def main() -> str:
     for label in range(dataset.num_labels):
         distribution_filtered_test_labels[label] = []
     for index, label in enumerate(filterd_test_labels):
-        distribution_filtered_test_labels[label].append(
-            filterd_test_images[index])
+        distribution_filtered_test_labels[label].append(filterd_test_images[index])
     for label in range(dataset.num_labels):
-        print("label: ", label, " number of images: ", len(
-            distribution_filtered_test_labels[label]))
+        Logger.debugging(messages=f"label: {label}, number of images: {len(distribution_filtered_test_labels[label])}")
 
     # *  ************************  * #
     # *  step 3. cluster analysis
@@ -129,15 +162,14 @@ def main() -> str:
     epsilon: float = 0.03
     count: int = 0
     distance_matrix: jnp.ndarray
-    print(
-        f"number of testing images: {len(distribution_filtered_test_labels[test_true_label])}")
-    distance_matrix = Cluster.generate_distance_matrix(
-        all_data=distribution_filtered_test_labels[test_true_label], distance_type="l2", chunk_size=100)  # ! out of memory
+    Logger.debugging(messages=f"number of testing images: {len(distribution_filtered_test_labels[test_true_label])}")
+    distance_matrix = Cluster.generate_distance_matrix(all_data=distribution_filtered_test_labels[test_true_label], 
+                                                       distance_type="l2", 
+                                                       chunk_size=100)  # ! out of memory
 
     # * find the similar data
-    similarity_data: List[int] = Cluster.greedy(
-        distance_matrix=distance_matrix, num_clusters=2)
-    print("similarity_data: ", similarity_data)
+    similarity_data: List[int] = Cluster.greedy(distance_matrix=distance_matrix, num_clusters=2)
+    Logger.debugging(messages=f"similarity_data: {similarity_data}")
 
     # TODO: Test merge abstract domain if possible
     test_set_inputs: List[int] = similarity_data
@@ -146,7 +178,6 @@ def main() -> str:
     for id in test_set_inputs:
         if type_of_property == "meet":
             if id == test_set_inputs[0]:
-                # if True:
                 vnnlib_filename: str = write_vnnlib(data=distribution_filtered_test_labels[test_true_label][id],
                                                     data_id=id,
                                                     num_classes=dataset.num_labels,
@@ -178,61 +209,30 @@ def main() -> str:
                                                           epsilon=epsilon)
 
         # * update networks by new vnnlib
-        networks: NetworksStructure = extract_network_structure(
-            onnx_filename, vnnlib_filename)
-        if id != test_set_inputs[len(test_set_inputs) - 1]:
-            continue
+        networks: NetworksStructure = extract_network_structure(onnx_filename, vnnlib_filename)
 
-        print("------------------------------------------------------")
-        print("start verifying ...")
-        m: SCIPModel | GurobiModel = mip_verifier(
-            solver_name="scip", networks=networks)
-        counter_example: List[float] = []
-        if m.get_solution_status() == "Infeasible":
-            print("UNSAT")
-        else:
-            for k, Nk in enumerate(networks.layer_to_layer):
-                if k == 0:
-                    for nk in range(Nk[0]):
-                        name: str = f"x_{k}_{nk}"
-                        variable = m.solver.continue_variables[name]
-                        counter_example.append(m.get_primal_solution(variable))
-                else:
-                    break
-            print("SAT")
+    Logger.info(messages="start verifying ...")
+    result: str = verify(solver=solver, onnx_filename=onnx_filename, vnnlib_filename=vnnlib_filename)
+    
+    # m: SCIPModel | GurobiModel = mip_verifier(solver_name=solver, networks=networks)
+    # counter_example: List[float] = []
+    # if m.get_solution_status() == "Infeasible":
+    #     Logger.info(messages="UNSAT")
+    # else:
+    #     for k, Nk in enumerate(networks.layer_to_layer):
+    #         if k == 0:
+    #             for nk in range(Nk[0]):
+    #                 name: str = f"x_{k}_{nk}"
+    #                 variable = m.solver.continue_variables[name]
+    #                 counter_example.append(m.get_primal_solution(variable))
+    #         else:
+    #             break
+    #     Logger.info(messages="SAT")
 
-        # plt.imshow(distribution_filtered_test_labels[test_true_label][id].reshape(28, 28), cmap='gray')
-        counter_example_image = np.array(counter_example).reshape(28, 28)
-        plt.imshow(counter_example_image, cmap='gray')
-        plt.show()
-
-    # for index, image in enumerate(distribution_filtered_test_labels[test_true_label]):
-    #     if index == 0:
-    #         vnnlib_filename: str = write_vnnlib(data=image,
-    #                                     data_id=index,
-    #                                     num_classes=dataset.num_labels,
-    #                                     true_label=test_true_label,
-    #                                     epsilon=epsilon)
-    #         print("vnnlib_filename: ", vnnlib_filename)
-    #     else:
-    #         vnnlib_filename: str = write_vnnlib_merge(networks=networks,
-    #                                                     data=image,
-    #                                                     data_id=index,
-    #                                                     num_classes=dataset.num_labels,
-    #                                                     true_label=test_true_label,
-    #                                                     epsilon=epsilon)
-    #         print("merged_vnnlib_filename: ", vnnlib_filename)
-
-    #     networks:NetworksStructure = extract_network_structure(onnx_filename, vnnlib_filename)
-    #     m: SCIPModel | GurobiModel = mip_verifier(solver_name="gurobi", networks=networks)
-    #     if m.get_solution_status() == "Infeasible":
-    #         print("UNSAT")
-    #     else:
-    #         print("SAT")
-
-    #     if count == 2:
-    #         break
-    #     count += 1
+    # # plt.imshow(distribution_filtered_test_labels[test_true_label][id].reshape(28, 28), cmap='gray')
+    # counter_example_image = np.array(counter_example).reshape(28, 28)
+    # plt.imshow(counter_example_image, cmap='gray')
+    # plt.show()
 
     # TODO: implement cluster analysis
 
@@ -253,7 +253,7 @@ def main() -> str:
     return result
 
 
-def release() -> str:
+def release(solver: str) -> str:
     """
     Batch verification algorithm: 
         step 0: read the input files (onnx, image files)
@@ -275,25 +275,22 @@ def release() -> str:
         2. Accelerate overall verification process.
         3. When we retrain NN, we have to verify the property again, so this might help to reduce the cost.
     """
-    result: str = "UNSAT"
-
     # *  ************************  * #
     # *  step 0. read the input files
     # *  ************************  * #
+    Logger.info(messages="step 0: read the input files")
     dataset: DataSet = load_dataset("mnist")
-    onnx_filename: str = "./utils/benchmarks/onnx/mnist-net_256x2.onnx"
-    vnnlib_filename: str = "./utils/benchmarks/vnnlib/prop_7_0.03.vnnlib"
+    onnx_filename: str = "./util/benchmarks/onnx/mnist-net_256x2.onnx"
+    vnnlib_filename: str = "./util/benchmarks/vnnlib/prop_7_0.03.vnnlib"
     # networks: NetworksStructure = extract_network_structure(onnx_filename, vnnlib_filename)
-    print("step 0: read the input files")
 
     # *  ************************  * #
     # *  step 1. filter correct classification results from testing dataset.
     # *  ************************  * #
-    session = ort.InferenceSession(
-        onnx_filename, providers=ort.get_available_providers())
+    Logger.info(messages="step 1: filter correct classification results from testing dataset")
+    session = ort.InferenceSession(onnx_filename, providers=ort.get_available_providers())
     input_name = session.get_inputs()[0].name
     output_name = session.get_outputs()[0].name
-    print("step 1: filter correct classification results from testing dataset")
 
     # *  =======================  * #
     # *  training dataset part
@@ -319,7 +316,7 @@ def release() -> str:
     filterd_test_images: List[jnp.ndarray] = []
     filterd_test_labels: List[int] = []
     num_test_images: int = len(dataset.test_images)
-    print("number of images in testing dataset: ", num_test_images)
+    Logger.debugging(messages=f"number of images in testing dataset: {num_test_images}")
     for data_id in range(num_test_images):
         inference_result = session.run([output_name],
                                        {input_name: dataset.test_images[data_id].astype(jnp.float32).reshape(1, dataset.num_pixels, 1)})[0]
@@ -329,9 +326,9 @@ def release() -> str:
             filterd_test_images.append(dataset.test_images[data_id])
             filterd_test_labels.append(true_label)
 
-    print("filterd_test_images: ", len(filterd_test_images))
-    print("filterd_test_labels: ", len(filterd_test_labels))
-    print("test accuracy: ", len(filterd_test_images) / num_test_images)
+    Logger.debugging(messages=f"filterd_test_images: {len(filterd_test_images)}")
+    Logger.debugging(messages=f"filterd_test_labels: {len(filterd_test_labels)}")
+    Logger.debugging(messages=f"test accuracy: {len(filterd_test_images) / num_test_images}")
 
     # *  ************************  * #
     # *  step 2. based on each label, separate into different groups.
@@ -340,11 +337,9 @@ def release() -> str:
     for label in range(dataset.num_labels):
         distribution_filtered_test_labels[label] = []
     for index, label in enumerate(filterd_test_labels):
-        distribution_filtered_test_labels[label].append(
-            filterd_test_images[index])
+        distribution_filtered_test_labels[label].append(filterd_test_images[index])
     for label in range(dataset.num_labels):
-        print("label: ", label, " number of images: ", len(
-            distribution_filtered_test_labels[label]))
+        Logger.debugging(messages=f"label: {label}, number of images: {len(distribution_filtered_test_labels[label])}")
 
     # *  ************************  * #
     # *  step 3. cluster analysis
@@ -355,15 +350,14 @@ def release() -> str:
     epsilon: float = 0.03
     count: int = 0
     distance_matrix: jnp.ndarray
-    print(
-        f"number of testing images: {len(distribution_filtered_test_labels[test_true_label])}")
-    distance_matrix = Cluster.generate_distance_matrix(
-        all_data=distribution_filtered_test_labels[test_true_label], distance_type="l2", chunk_size=100)  # ! out of memory
+    Logger.debugging(messages=f"number of testing images: {len(distribution_filtered_test_labels[test_true_label])}")
+    distance_matrix = Cluster.generate_distance_matrix(all_data=distribution_filtered_test_labels[test_true_label], 
+                                                       distance_type="l2", 
+                                                       chunk_size=100) 
 
     # * find the similar data
     similarity_data: List[int] = Cluster.greedy(
         distance_matrix=distance_matrix, num_clusters=2)
-    print("similarity_data: ", similarity_data)
 
     # TODO: Test merge abstract domain if possible
     test_set_inputs: List[int] = similarity_data
@@ -384,34 +378,34 @@ def release() -> str:
                              != -99999 else distribution_filtered_test_labels[true_label][id][i] + epsilon for i in range(dataset.num_pixels)]
 
     # * update networks by new vnnlib
-    vnnlib_filename = export_vnnlib(lb=each_pixel_lb, ub=each_pixel_ub,
-                                    num_classes=dataset.num_labels, true_label=test_true_label, epsilon=epsilon)
-    networks: NetworksStructure = extract_network_structure(
-        onnx_filename, vnnlib_filename)
-    print(f"vnnlib_filename: {vnnlib_filename}")
+    vnnlib_filename = export_vnnlib(lb=each_pixel_lb, 
+                                    ub=each_pixel_ub,
+                                    num_classes=dataset.num_labels, 
+                                    true_label=test_true_label, 
+                                    epsilon=epsilon)
 
-    print("------------------------------------------------------")
-    print("start verifying ...")
-    m: SCIPModel | GurobiModel = mip_verifier(
-        solver_name="scip", networks=networks)
-    counter_example: List[float] = []
-    if m.get_solution_status() == "Infeasible":
-        print("UNSAT")
-    else:
-        for k, Nk in enumerate(networks.layer_to_layer):
-            if k == 0:
-                for nk in range(Nk[0]):
-                    name: str = f"x_{k}_{nk}"
-                    variable = m.solver.continue_variables[name]
-                    counter_example.append(m.get_primal_solution(variable))
-            else:
-                break
-        print("SAT")
+    Logger.info(messages="start verifying ...")
+    result: str = verify(solver=solver, onnx_filename=onnx_filename, vnnlib_filename=vnnlib_filename)
 
-    # plt.imshow(distribution_filtered_test_labels[test_true_label][id].reshape(28, 28), cmap='gray')
-    counter_example_image = np.array(counter_example).reshape(28, 28)
-    plt.imshow(counter_example_image, cmap='gray')
-    plt.show()
+    # m: SCIPModel | GurobiModel = mip_verifier(solver_name=solver, networks=networks)
+    # counter_example: List[float] = []
+    # if m.get_solution_status() == "Infeasible":
+    #     Logger.info(messages="UNSAT")
+    # else:
+    #     for k, Nk in enumerate(networks.layer_to_layer):
+    #         if k == 0:
+    #             for nk in range(Nk[0]):
+    #                 name: str = f"x_{k}_{nk}"
+    #                 variable = m.solver.continue_variables[name]
+    #                 counter_example.append(m.get_primal_solution(variable))
+    #         else:
+    #             break
+    #     Logger.info(messages="SAT")
+
+    # # plt.imshow(distribution_filtered_test_labels[test_true_label][id].reshape(28, 28), cmap='gray')
+    # counter_example_image = np.array(counter_example).reshape(28, 28)
+    # plt.imshow(counter_example_image, cmap='gray')
+    # plt.show()
 
     # TODO: implement cluster analysis
 
@@ -429,11 +423,34 @@ def release() -> str:
     # *  ************************  * #
     # TODO: implement verification algorithm
 
-    return "released version"
+    return result
 
+
+def main(mode: str = "debug", solver: str = "scip") -> str:
+    Logger.initialize(filename="log.txt", with_log_file=False)
+    Logger.info(messages="batch verification is starting...")
+
+    if mode == "debug":
+        Logger.info(messages="debug mode is enabled")
+        return debug(solver=solver)
+    elif mode == "release":
+        Logger.info(messages="release mode is enabled")
+        return release(solver=solver)
+    else:
+        Logger.error(messages="mode is not supported")
+
+    return "main version"
 
 if __name__ == "__main__":
-    print("batch verification is starting...")
-    # main()
-    release()
+
+    parser = argparse.ArgumentParser()
+    
+    parser.add_argument("--mode", type=str, default="debug")
+    parser.add_argument("--solver", type=str, default="scip")
+    
+    args = parser.parse_args()
+    mode: str = args.mode
+    solver: str = args.solver
+
+    main(mode=mode, solver=solver)
     # verify()
