@@ -1,11 +1,16 @@
 from enum import Enum
 
 class InputMergedBy(Enum):
-    MEET = 1
-    JOIN = 2
+    MEET = "meet"
+    JOIN = "join"
 
 
 class VerificationSolver(Enum):
     GUROBI = "gurobi"
     SCIP = "scip"
     CROWN = "crown"
+
+
+class Mode(Enum):
+    DEBUG = "debug"
+    RELEASE = "release"

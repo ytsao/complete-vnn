@@ -82,7 +82,7 @@ def export_vnnlib(lb: List[float], ub: List[float], num_classes: int, true_label
     return file_path
 
 
-def write_vnnlib_merge(networks: NetworksStructure, data: jnp.ndarray, data_id: int, num_classes: int, true_label: int, epsilon: float) -> str:
+def write_vnnlib_join(networks: NetworksStructure, data: jnp.ndarray, data_id: int, num_classes: int, true_label: int, epsilon: float) -> str:
     """
     * write the data to vnnlib file.
     * merge several property together into one file.
