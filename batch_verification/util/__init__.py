@@ -8,3 +8,5 @@ from .read_dataset import extract_network_structure, load_dataset
 from .plot_results import *
 from .save_results import *
 from .log import Logger
+from .merge_inputs import *
+from .options import *

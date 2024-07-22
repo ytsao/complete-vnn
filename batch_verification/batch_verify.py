@@ -2,6 +2,7 @@ from collections import defaultdict
 from typing import List, Dict
 import os
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' # disable information and warning from tensorflow
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import argparse
 
@@ -23,6 +24,8 @@ from util.read_dataset import load_dataset
 from util.parameters_networks import NetworksStructure
 from util.parameters_networks import DataSet
 from util.write_vnnlib import write_vnnlib, write_vnnlib_merge, export_vnnlib
+from util.merge_inputs import meet, join
+from util.options import InputMergedBy, VerificationSolver
 from util.log import Logger
 
 
@@ -30,54 +33,58 @@ from util.log import Logger
 
 
 # TODO: implement verification algorithm in different ways
-def verify(solver: str, onnx_filename: str, vnnlib_filename: str, all_images: List[jnp.ndarray], epsilon: float) -> str:
+def verify(solver: VerificationSolver, onnx_filename: str, vnnlib_filename: str, all_images: List[jnp.ndarray], epsilon: float) -> str:
     """
     Verification algorithm:
 
     Support: MIP (SCIP, Gurobi), CROWN
     """
     result: str = "UNSAT"
+    res_ce_check: bool = False
 
-    if solver == "scip" or solver == "gurobi":
+    Logger.debugging(messages=f"tes: {type(VerificationSolver.CROWN)}")
+    if solver == VerificationSolver.SCIP or solver == VerificationSolver.GUROBI:
         Logger.info(messages=f"Verification Algorithm is MIP solver ({solver})")
         networks: NetworksStructure = extract_network_structure(onnx_file_path=onnx_filename, 
                                                                 vnnlib_file_path=vnnlib_filename)
-        m: SCIPModel | GurobiModel = mip_verifier(solver_name=solver,
-                                                  networks=networks)
         
-        if m.get_solution_status() == "Infeasible":
-            result = "UNSAT"
-        else:
-            result = "SAT"
-
-            # * Testing checker for counter-example found by MIP
-            counter_example: List[float] = []
-            for k, Nk in enumerate(networks.layer_to_layer):
-                if k == 0:
-                    for nk in range(Nk[0]):
-                        name: str = f"x_{k}_{nk}"
-                        variable = m.solver.continue_variables[name]
-                        counter_example.append(m.get_primal_solution(variable))
-                else:
-                    break
-            counter_example: jnp.ndarray = jnp.array(counter_example)
+        
+        while not res_ce_check: # ! refine this condition
+            m: SCIPModel | GurobiModel = mip_verifier(solver_name=solver,
+                                                      networks=networks)
             
-            ce_checker: Checker = Checker(all_images=all_images, 
-                                          counter_example=counter_example, 
-                                          epsilon=epsilon)
-            res_ce_check: bool = ce_checker.check()
-            Logger.debugging(messages=f"counter example check: {res_ce_check}")
+            if m.get_solution_status() == "Infeasible":
+                result: str = "UNSAT"
+                break
+            else:
+                result: str = "SAT"
 
-            if res_ce_check is False:
-                Logger.error(messages="Counter example is not correct")
+                # * Testing checker for counter-example found by MIP
+                counter_example: List[float] = []
+                for k, Nk in enumerate(networks.layer_to_layer):
+                    if k == 0:
+                        for nk in range(Nk[0]):
+                            name: str = f"x_{k}_{nk}"
+                            variable = m.solver.continue_variables[name]
+                            counter_example.append(m.get_primal_solution(variable))
+                    else:
+                        break
+                counter_example: jnp.ndarray = jnp.array(counter_example)
+                
+                ce_checker: Checker = Checker(all_images=all_images, 
+                                              counter_example=counter_example, 
+                                              epsilon=epsilon)
+                res_ce_check: bool = ce_checker.check()
+                Logger.debugging(messages=f"counter example check: {res_ce_check}")
 
-            Logger.info(messages="SAT")
+                if res_ce_check is False:
+                    Logger.error(messages="Counter example is not correct")
+                else:
+                    Logger.info(messages="Counter example is correct")
 
+                Logger.info(messages="SAT")
 
-
-
-
-    elif solver == "crown":
+    elif solver == VerificationSolver.CROWN:
         Logger.info(messages="Verification Algorithm is CROWN")
 
         result = crown_verifier(onnx_file_path=onnx_filename,
@@ -88,7 +95,7 @@ def verify(solver: str, onnx_filename: str, vnnlib_filename: str, all_images: Li
     return result
 
 
-def debug(solver: str) -> str:
+def debug(solver: VerificationSolver) -> str:
     """
     Batch verification algorithm: 
         step 0: read the input files (onnx, image files)
@@ -184,7 +191,7 @@ def debug(solver: str) -> str:
     # *  ************************  * #
     # *  step 3. similarity analysis
     # *  ************************  * #
-    type_of_property: str = "meet"
+    type_of_property: InputMergedBy = InputMergedBy.MEET
     vnnlib_filename: str = ""
     test_true_label: int = 0        # YES: 0,    Y3(1)
     epsilon: float = 0.03
@@ -204,7 +211,7 @@ def debug(solver: str) -> str:
     # test_set_inputs: List[int] = [similarity_data[0], similarity_data[1], similarity_data[2], similarity_data[3]]
     # test_set_inputs: List[int] = [similarity_data[3], similarity_data[len(similarity_data) - 1]]
     for id in test_set_inputs:
-        if type_of_property == "meet":
+        if type_of_property == InputMergedBy.MEET:
             if id == test_set_inputs[0]:
                 vnnlib_filename: str = write_vnnlib(data=distribution_filtered_test_labels[test_true_label][id],
                                                     data_id=id,
@@ -219,7 +226,7 @@ def debug(solver: str) -> str:
                                                           num_classes=dataset.num_labels,
                                                           true_label=test_true_label,
                                                           epsilon=epsilon)
-        elif type_of_property == "join":
+        elif type_of_property == InputMergedBy.JOIN:
             if id == test_set_inputs[0]:
                 # if True:
                 vnnlib_filename: str = write_vnnlib(data=distribution_filtered_test_labels[test_true_label][id],
@@ -281,7 +288,7 @@ def debug(solver: str) -> str:
     return result
 
 
-def release(solver: str) -> str:
+def release(solver: VerificationSolver) -> str:
     """
     Batch verification algorithm: 
         step 0: read the input files (onnx, image files)
@@ -372,7 +379,7 @@ def release(solver: str) -> str:
     # *  ************************  * #
     # *  step 3. similarity analysis
     # *  ************************  * #
-    type_of_property: str = "meet"
+    type_of_property: str = InputMergedBy.MEET
     vnnlib_filename: str = ""
     test_true_label: int = 0        # YES: 0,    Y3(1)
     epsilon: float = 0.03
@@ -386,23 +393,17 @@ def release(solver: str) -> str:
     # * find the similar data
     similarity_data: List[int] = Similarity.greedy(distance_matrix=distance_matrix, num_clusters=2)
 
-    # TODO: Test merge abstract domain if possible
-    test_set_inputs: List[int] = similarity_data
-    # test_set_inputs: List[int] = [similarity_data[0], similarity_data[1], similarity_data[2], similarity_data[3]]
-    # test_set_inputs: List[int] = [similarity_data[3], similarity_data[len(similarity_data) - 1]]
-    each_pixel_lb: List[float] = [99999 for _ in range(dataset.num_pixels)]
-    each_pixel_ub: List[float] = [-99999 for _ in range(dataset.num_pixels)]
-    for id in test_set_inputs:
-        if type_of_property == "meet":
-            each_pixel_lb = [min(each_pixel_lb[i], max(0,distribution_filtered_test_labels[test_true_label][id][i]-epsilon))
-                             for i in range(dataset.num_pixels)]
-            each_pixel_ub = [max(each_pixel_ub[i], min(1,distribution_filtered_test_labels[test_true_label][id][i]+epsilon))
-                             for i in range(dataset.num_pixels)]
-        elif type_of_property == "join":
-            each_pixel_lb = [max(each_pixel_lb[i], distribution_filtered_test_labels[test_true_label][id][i]) if each_pixel_lb[i]
-                             != 99999 else distribution_filtered_test_labels[true_label][id][i] - epsilon for i in range(dataset.num_pixels)]
-            each_pixel_ub = [min(each_pixel_ub[i], distribution_filtered_test_labels[test_true_label][id][i]) if each_pixel_ub[i]
-                             != -99999 else distribution_filtered_test_labels[true_label][id][i] + epsilon for i in range(dataset.num_pixels)]
+    # * merge abstract domain if possible
+    each_pixel_lb: List[float]
+    each_pixel_ub: List[float]
+    if type_of_property == InputMergedBy.MEET:
+        each_pixel_lb, each_pixel_ub = meet(all_inputs=distribution_filtered_test_labels[test_true_label], 
+                                            dataset=dataset, 
+                                            epsilon=epsilon)
+    elif type_of_property == InputMergedBy.JOIN:
+        each_pixel_lb, each_pixel_ub = join(all_inputs=distribution_filtered_test_labels[test_true_label], 
+                                            dataset=dataset, 
+                                            epsilon=epsilon)
 
     # * update networks by new vnnlib
     vnnlib_filename = export_vnnlib(lb=each_pixel_lb, 
@@ -457,7 +458,7 @@ def release(solver: str) -> str:
     return result
 
 
-def main(mode: str = "debug", solver: str = "scip") -> str:
+def main(mode: str = "debug", solver: VerificationSolver = VerificationSolver.SCIP) -> str:
     Logger.initialize(filename="log.txt", with_log_file=False)
     Logger.info(messages="batch verification is starting...")
 
@@ -481,7 +482,7 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     mode: str = args.mode
-    solver: str = args.solver
+    solver: VerificationSolver = VerificationSolver(args.solver)
+    print(solver)
 
     main(mode=mode, solver=solver)
-    # verify()
