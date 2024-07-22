@@ -7,7 +7,7 @@ general:
   loss_reduction_func: sum  # When batch size is not 1, this reduction function is applied to reduce the bounds into a scalar (options are "sum" and "min").
   sparse_alpha: true  # Enable/disable sparse alpha.
   sparse_interm: true  # Enable/disable sparse intermediate bounds.
-  save_adv_example: false  # Save returned adversarial example in file.
+  save_adv_example: true  # Save returned adversarial example in file.
   eval_adv_example: false  # Whether to validate the saved adversarial example.
   show_adv_example: false  # Print the adversarial example.
   precompile_jit: false  # Precompile jit kernels to speed up after jit-wrapped functions, but will cost extra time at the beginning.

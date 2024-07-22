@@ -10,11 +10,11 @@ import onnxruntime as ort
 import numpy as np
 import jax.numpy as jnp
 
+from src.crown import crown_verifier
 from src.mip import mip_verifier
-from src.cluster import Cluster
+from src.similarity import Similarity
+from src.ce_checker import Checker
 
-# from crown import crown_verifier
-from crown import crown_verifier
 from util.gurobi_modeling import GurobiModel
 from util.scip_modeling import SCIPModel
 from util.mip_modeling import Model
@@ -30,7 +30,7 @@ from util.log import Logger
 
 
 # TODO: implement verification algorithm in different ways
-def verify(solver: str, onnx_filename: str, vnnlib_filename: str) -> str:
+def verify(solver: str, onnx_filename: str, vnnlib_filename: str, all_images: List[jnp.ndarray], epsilon: float) -> str:
     """
     Verification algorithm:
 
@@ -49,6 +49,34 @@ def verify(solver: str, onnx_filename: str, vnnlib_filename: str) -> str:
             result = "UNSAT"
         else:
             result = "SAT"
+
+            # * Testing checker for counter-example found by MIP
+            counter_example: List[float] = []
+            for k, Nk in enumerate(networks.layer_to_layer):
+                if k == 0:
+                    for nk in range(Nk[0]):
+                        name: str = f"x_{k}_{nk}"
+                        variable = m.solver.continue_variables[name]
+                        counter_example.append(m.get_primal_solution(variable))
+                else:
+                    break
+            counter_example: jnp.ndarray = jnp.array(counter_example)
+            
+            ce_checker: Checker = Checker(all_images=all_images, 
+                                          counter_example=counter_example, 
+                                          epsilon=epsilon)
+            res_ce_check: bool = ce_checker.check()
+            Logger.debugging(messages=f"counter example check: {res_ce_check}")
+
+            if res_ce_check is False:
+                Logger.error(messages="Counter example is not correct")
+
+            Logger.info(messages="SAT")
+
+
+
+
+
     elif solver == "crown":
         Logger.info(messages="Verification Algorithm is CROWN")
 
@@ -67,7 +95,7 @@ def debug(solver: str) -> str:
 
         step 1: filter correct classification results from testing dataset.
         step 2: based on each label, separate into different groups.
-        step 3: cluster analysis
+        step 3: similarity analysis
                 - goal: group similar data.
                         based on pre-defined metric.
         step 4: define abstract domain, 𝒜 for each cluster.
@@ -154,7 +182,7 @@ def debug(solver: str) -> str:
         Logger.debugging(messages=f"label: {label}, number of images: {len(distribution_filtered_test_labels[label])}")
 
     # *  ************************  * #
-    # *  step 3. cluster analysis
+    # *  step 3. similarity analysis
     # *  ************************  * #
     type_of_property: str = "meet"
     vnnlib_filename: str = ""
@@ -163,12 +191,12 @@ def debug(solver: str) -> str:
     count: int = 0
     distance_matrix: jnp.ndarray
     Logger.debugging(messages=f"number of testing images: {len(distribution_filtered_test_labels[test_true_label])}")
-    distance_matrix = Cluster.generate_distance_matrix(all_data=distribution_filtered_test_labels[test_true_label], 
+    distance_matrix = Similarity.generate_distance_matrix(all_data=distribution_filtered_test_labels[test_true_label], 
                                                        distance_type="l2", 
                                                        chunk_size=100)  # ! out of memory
 
     # * find the similar data
-    similarity_data: List[int] = Cluster.greedy(distance_matrix=distance_matrix, num_clusters=2)
+    similarity_data: List[int] = Similarity.greedy(distance_matrix=distance_matrix, num_clusters=2)
     Logger.debugging(messages=f"similarity_data: {similarity_data}")
 
     # TODO: Test merge abstract domain if possible
@@ -333,7 +361,7 @@ def release(solver: str) -> str:
     # *  ************************  * #
     # *  step 2. based on each label, separate into different groups.
     # *  ************************  * #
-    distribution_filtered_test_labels: Dict[int, List[jnp.ndarray]] = {}
+    distribution_filtered_test_labels: Dict[int, List[jnp.ndarray]] = {} # * key: label, value: images
     for label in range(dataset.num_labels):
         distribution_filtered_test_labels[label] = []
     for index, label in enumerate(filterd_test_labels):
@@ -342,7 +370,7 @@ def release(solver: str) -> str:
         Logger.debugging(messages=f"label: {label}, number of images: {len(distribution_filtered_test_labels[label])}")
 
     # *  ************************  * #
-    # *  step 3. cluster analysis
+    # *  step 3. similarity analysis
     # *  ************************  * #
     type_of_property: str = "meet"
     vnnlib_filename: str = ""
@@ -351,13 +379,12 @@ def release(solver: str) -> str:
     count: int = 0
     distance_matrix: jnp.ndarray
     Logger.debugging(messages=f"number of testing images: {len(distribution_filtered_test_labels[test_true_label])}")
-    distance_matrix = Cluster.generate_distance_matrix(all_data=distribution_filtered_test_labels[test_true_label], 
+    distance_matrix = Similarity.generate_distance_matrix(all_data=distribution_filtered_test_labels[test_true_label], 
                                                        distance_type="l2", 
                                                        chunk_size=100) 
 
     # * find the similar data
-    similarity_data: List[int] = Cluster.greedy(
-        distance_matrix=distance_matrix, num_clusters=2)
+    similarity_data: List[int] = Similarity.greedy(distance_matrix=distance_matrix, num_clusters=2)
 
     # TODO: Test merge abstract domain if possible
     test_set_inputs: List[int] = similarity_data
@@ -367,9 +394,9 @@ def release(solver: str) -> str:
     each_pixel_ub: List[float] = [-99999 for _ in range(dataset.num_pixels)]
     for id in test_set_inputs:
         if type_of_property == "meet":
-            each_pixel_lb = [min(each_pixel_lb[i], distribution_filtered_test_labels[test_true_label][id][i])
+            each_pixel_lb = [min(each_pixel_lb[i], max(0,distribution_filtered_test_labels[test_true_label][id][i]-epsilon))
                              for i in range(dataset.num_pixels)]
-            each_pixel_ub = [max(each_pixel_ub[i], distribution_filtered_test_labels[test_true_label][id][i])
+            each_pixel_ub = [max(each_pixel_ub[i], min(1,distribution_filtered_test_labels[test_true_label][id][i]+epsilon))
                              for i in range(dataset.num_pixels)]
         elif type_of_property == "join":
             each_pixel_lb = [max(each_pixel_lb[i], distribution_filtered_test_labels[test_true_label][id][i]) if each_pixel_lb[i]
@@ -385,7 +412,11 @@ def release(solver: str) -> str:
                                     epsilon=epsilon)
 
     Logger.info(messages="start verifying ...")
-    result: str = verify(solver=solver, onnx_filename=onnx_filename, vnnlib_filename=vnnlib_filename)
+    result: str = verify(solver=solver, 
+                         onnx_filename=onnx_filename, 
+                         vnnlib_filename=vnnlib_filename,
+                         all_images=distribution_filtered_test_labels[test_true_label],
+                         epsilon=epsilon)
 
     # m: SCIPModel | GurobiModel = mip_verifier(solver_name=solver, networks=networks)
     # counter_example: List[float] = []
