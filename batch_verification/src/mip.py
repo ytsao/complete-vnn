@@ -8,6 +8,7 @@ from util import GurobiModel
 from util import NetworksStructure
 from util import DataSet
 from util import read_dataset
+from util.options import VerificationSolver
 from util.log import Logger
 
 # required >= 3.12 version
@@ -288,15 +289,15 @@ def _print_results(m: SCIPModel | GurobiModel) -> None:
     return
 
 
-def mip_verifier(solver_name: str, networks: NetworksStructure) -> SCIPModel | GurobiModel | None:
+def mip_verifier(solver_name: VerificationSolver, networks: NetworksStructure) -> SCIPModel | GurobiModel | None:
     """
 
     """
     m: SCIPModel | GurobiModel | None = None
-    if solver_name == "scip":
+    if solver_name is VerificationSolver.SCIP:
         Logger.info(messages="SCIP solver is used.")
         m = SCIPModel(solver=Model())
-    elif solver_name == "gurobi":
+    elif solver_name is VerificationSolver.GUROBI:
         Logger.info(messages="Gurobi solver is used.")
         m = GurobiModel(solver=Model(solver_name="gurobi"))
     else:

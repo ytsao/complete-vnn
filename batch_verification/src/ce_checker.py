@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple
 
 import jax.numpy as jnp
 
@@ -9,12 +9,14 @@ class Checker:
         self.ce = counter_example
 
 
-    def check(self) -> bool:
+    def check(self) -> Tuple[int, bool]:
+        ce_id: int = -1
         result: bool = False
 
-        for each_image in self.all_images:
+        for id, each_image in enumerate(self.all_images):
             if jnp.all(jnp.abs(each_image - self.ce) <= self.epsilon):
                 result = True
+                ce_id = id
                 break
 
-        return result
+        return ce_id, result

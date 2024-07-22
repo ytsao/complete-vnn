@@ -24,6 +24,7 @@ from util.parameters_networks import NetworksStructure, DataSet
 from util.write_vnnlib import write_vnnlib, write_vnnlib_join, write_vnnlib_meet, export_vnnlib
 from util.merge_inputs import meet, join
 from util.options import InputMergedBy, VerificationSolver, Mode
+from util.save_results import Results
 from util.log import Logger
 
 
@@ -31,7 +32,13 @@ from util.log import Logger
 
 
 # TODO: implement verification algorithm in different ways
-def verify(solver: VerificationSolver, onnx_filename: str, vnnlib_filename: str, all_images: List[jnp.ndarray], epsilon: float) -> str:
+def verify(solver: VerificationSolver, 
+           onnx_filename: str, 
+           vnnlib_filename: str, 
+           all_images: List[jnp.ndarray],
+           mergedtype: InputMergedBy, 
+           true_label: int,  
+           epsilon: float) -> str:
     """
     Verification algorithm:
 
@@ -43,11 +50,10 @@ def verify(solver: VerificationSolver, onnx_filename: str, vnnlib_filename: str,
     Logger.debugging(messages=f"tes: {type(VerificationSolver.CROWN)}")
     if solver is VerificationSolver.SCIP or solver is VerificationSolver.GUROBI:
         Logger.info(messages=f"Verification Algorithm is MIP solver ({solver})")
-        networks: NetworksStructure = extract_network_structure(onnx_file_path=onnx_filename, 
-                                                                vnnlib_file_path=vnnlib_filename)
-        
         
         while not res_ce_check: # ! refine this condition
+            networks: NetworksStructure = extract_network_structure(onnx_file_path=onnx_filename, 
+                                                                vnnlib_file_path=vnnlib_filename)
             m: SCIPModel | GurobiModel = mip_verifier(solver_name=solver, networks=networks)
             
             if m.get_solution_status() == "Infeasible":
@@ -71,13 +77,45 @@ def verify(solver: VerificationSolver, onnx_filename: str, vnnlib_filename: str,
                 ce_checker: Checker = Checker(all_images=all_images, 
                                               counter_example=counter_example, 
                                               epsilon=epsilon)
-                res_ce_check: bool = ce_checker.check()
+                
+                ce_id:int 
+                res_ce_check: bool 
+                ce_id, res_ce_check = ce_checker.check()
                 Logger.debugging(messages=f"counter example check: {res_ce_check}")
 
                 if res_ce_check is False:
                     Logger.error(messages="Counter example is not correct")
-                else:
-                    Logger.info(messages="Counter example is correct")
+                    # TODO: divide and conquer
+                    # TODO: tree based search...
+                    # ? How to divide the input domain?
+                    # ? What is the goal?
+                    # ? What is the termination condition?
+                else: 
+                    Logger.info(messages="Counter example from MIP is a real counter example")
+                    assert ce_id != -1
+
+
+                    Results.add(ce=counter_example, ce_id=ce_id, label=true_label)
+                    
+                    # * updating input domain
+                    if mergedtype is InputMergedBy.JOIN:
+                        each_pixel_lb, each_pixel_ub = join(all_inputs=all_images, 
+                                                            removed_inputs=Results.get_unsatisfiable_inputs(label=true_label), 
+                                                            num_dimensions=networks.num_inputs, 
+                                                            epsilon=epsilon)
+                    elif mergedtype is InputMergedBy.MEET:
+                        each_pixel_lb, each_pixel_ub = meet(all_inputs=all_images, 
+                                                            num_dimensions=networks.num_inputs, 
+                                                            epsilon=epsilon)
+
+                    vnnlib_filename = export_vnnlib(lb=each_pixel_lb,
+                                                    ub=each_pixel_ub,
+                                                    num_classes=networks.num_outputs,
+                                                    true_label=true_label,
+                                                    epsilon=epsilon)
+                    Logger.info(messages="updated the input domain")
+                    Logger.debugging(messages=f"removed: {Results.get_unsatisfiable_inputs(label=true_label)}")
+                
 
                 Logger.info(messages="SAT")
 
@@ -92,7 +130,7 @@ def verify(solver: VerificationSolver, onnx_filename: str, vnnlib_filename: str,
     return result
 
 
-def debug(solver: VerificationSolver) -> str:
+def debug(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     """
     Batch verification algorithm: 
         step 0: read the input files (onnx, image files)
@@ -244,7 +282,13 @@ def debug(solver: VerificationSolver) -> str:
         networks: NetworksStructure = extract_network_structure(onnx_filename, vnnlib_filename)
 
     Logger.info(messages="start verifying ...")
-    result: str = verify(solver=solver, onnx_filename=onnx_filename, vnnlib_filename=vnnlib_filename)
+    result: str = verify(solver=solver, 
+                         onnx_filename=onnx_filename, 
+                         vnnlib_filename=vnnlib_filename,
+                         all_images=distribution_filtered_test_labels[test_true_label],
+                         mergedtype=mergedtype,
+                         true_label=test_true_label,
+                         epsilon=epsilon)
     
     # m: SCIPModel | GurobiModel = mip_verifier(solver_name=solver, networks=networks)
     # counter_example: List[float] = []
@@ -285,7 +329,7 @@ def debug(solver: VerificationSolver) -> str:
     return result
 
 
-def release(solver: VerificationSolver) -> str:
+def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     """
     Batch verification algorithm: 
         step 0: read the input files (onnx, image files)
@@ -376,7 +420,6 @@ def release(solver: VerificationSolver) -> str:
     # *  ************************  * #
     # *  step 3. similarity analysis
     # *  ************************  * #
-    type_of_property: InputMergedBy = InputMergedBy.JOIN
     vnnlib_filename: str = ""
     test_true_label: int = 0        # YES: 0,    Y3(1)
     epsilon: float = 0.03
@@ -393,13 +436,13 @@ def release(solver: VerificationSolver) -> str:
     # * merge abstract domain if possible
     each_pixel_lb: List[float]
     each_pixel_ub: List[float]
-    if type_of_property is InputMergedBy.MEET:
+    if mergedtype is InputMergedBy.MEET:
         each_pixel_lb, each_pixel_ub = meet(all_inputs=distribution_filtered_test_labels[test_true_label], 
-                                            dataset=dataset, 
+                                            num_dimensions=dataset.num_pixels, 
                                             epsilon=epsilon)
-    elif type_of_property is InputMergedBy.JOIN:
+    elif mergedtype is InputMergedBy.JOIN:
         each_pixel_lb, each_pixel_ub = join(all_inputs=distribution_filtered_test_labels[test_true_label], 
-                                            dataset=dataset, 
+                                            num_dimensions=dataset.num_pixels, 
                                             epsilon=epsilon)
 
     # * update networks by new vnnlib
@@ -414,6 +457,8 @@ def release(solver: VerificationSolver) -> str:
                          onnx_filename=onnx_filename, 
                          vnnlib_filename=vnnlib_filename,
                          all_images=distribution_filtered_test_labels[test_true_label],
+                         mergedtype=mergedtype,
+                         true_label=test_true_label,
                          epsilon=epsilon)
 
     # m: SCIPModel | GurobiModel = mip_verifier(solver_name=solver, networks=networks)
@@ -455,16 +500,18 @@ def release(solver: VerificationSolver) -> str:
     return result
 
 
-def main(mode: Mode = Mode.DEBUG, solver: VerificationSolver = VerificationSolver.SCIP) -> str:
+def main(mode: Mode = Mode.DEBUG, 
+         solver: VerificationSolver = VerificationSolver.SCIP,
+         mergedtype: InputMergedBy = InputMergedBy.JOIN) -> str:
     Logger.initialize(filename="log.txt", with_log_file=False)
     Logger.info(messages="batch verification is starting...")
 
     if mode is Mode.DEBUG:
         Logger.info(messages="debug mode is enabled")
-        return debug(solver=solver)
+        return debug(solver=solver, mergedtype=mergedtype)
     elif mode is Mode.RELEASE:
         Logger.info(messages="release mode is enabled")
-        return release(solver=solver)
+        return release(solver=solver, mergedtype=mergedtype)
     else:
         Logger.error(messages="mode is not supported")
 
@@ -476,10 +523,11 @@ if __name__ == "__main__":
     
     parser.add_argument("--mode", type=str, default="debug")
     parser.add_argument("--solver", type=str, default="scip")
+    parser.add_argument("--mergedtype", type=str, default="join")
     
     args = parser.parse_args()
     mode: Mode = Mode(args.mode)
     solver: VerificationSolver = VerificationSolver(args.solver)
-    print(solver)
+    mergedtype: InputMergedBy = InputMergedBy(args.mergedtype)
 
-    main(mode=mode, solver=solver)
+    main(mode=mode, solver=solver, mergedtype=mergedtype)
