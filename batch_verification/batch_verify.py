@@ -23,7 +23,7 @@ from util.gurobi_modeling import GurobiModel
 from util.scip_modeling import SCIPModel
 from util.mip_modeling import Model
 from util.read_dataset import extract_network_structure, load_dataset
-from util.read_results import Crown
+from util.read_results import get_ce
 from util.parameters_networks import NetworksStructure, DataSet
 from util.write_vnnlib import (
     write_vnnlib,
@@ -58,88 +58,75 @@ def verify(
     result: str = "UNSAT"
     res_ce_check: bool = False
 
-    Logger.debugging(messages=f"tes: {type(VerificationSolver.CROWN)}")
-    if solver is VerificationSolver.SCIP or solver is VerificationSolver.GUROBI:
-        Logger.info(messages=f"Verification Algorithm is MIP solver ({solver})")
+    while not res_ce_check:  # ! refine this condition
+        networks: NetworksStructure = extract_network_structure(
+            onnx_file_path=onnx_filename, vnnlib_file_path=vnnlib_filename
+        )
+        m: SCIPModel | GurobiModel | None = None
 
-        while not res_ce_check:  # ! refine this condition
-            networks: NetworksStructure = extract_network_structure(
-                onnx_file_path=onnx_filename, vnnlib_file_path=vnnlib_filename
-            )
+        if solver is VerificationSolver.SCIP or solver is VerificationSolver.GUROBI:
+            Logger.info(messages=f"Verification Algorithm is MIP solver ({solver})")
+
             m: SCIPModel | GurobiModel = mip_verifier(
                 solver_name=solver, networks=networks
             )
+            result = "UNSAT" if m.get_solution_status() == "Infeasible" else "SAT"
+        elif solver is VerificationSolver.CROWN:
+            Logger.info(messages="Verification Algorithm is CROWN")
 
-            if m.get_solution_status() == "Infeasible":
-                result: str = "UNSAT"
-                break
+            result = crown_verifier(
+                onnx_file_path=onnx_filename, vnnlib_file_path=vnnlib_filename
+            )
+
+        if result == "UNSAT":
+            break
+        else:
+            # * Testing checker for counter-example found by MIP
+            counter_example: List[float] = get_ce(
+                solver=solver, networks=networks, filename="./test_cex.txt", m=m
+            )
+            counter_example: jnp.ndarray = jnp.array(counter_example)
+
+            ce_checker: Checker = Checker(
+                all_images=all_images,
+                counter_example=counter_example,
+                epsilon=epsilon,
+            )
+
+            ce_id: int
+            res_ce_check: bool
+            ce_id, res_ce_check = ce_checker.check()
+            Logger.debugging(messages=f"counter example check: {res_ce_check}")
+
+            if res_ce_check is False:
+                Logger.error(messages="Counter example is not correct")
+                # TODO: divide and conquer
+                # TODO: tree based search...
+                # ? How to divide the input domain?
+                # ? What is the goal?
+                # ? What is the termination condition?
             else:
-                result: str = "SAT"
-
-                # * Testing checker for counter-example found by MIP
-                counter_example: List[float] = []
-                for k, Nk in enumerate(networks.layer_to_layer):
-                    if k == 0:
-                        for nk in range(Nk[0]):
-                            name: str = f"x_{k}_{nk}"
-                            variable = m.solver.continue_variables[name]
-                            counter_example.append(m.get_primal_solution(variable))
-                    else:
-                        break
-                counter_example: jnp.ndarray = jnp.array(counter_example)
-
-                ce_checker: Checker = Checker(
-                    all_images=all_images,
-                    counter_example=counter_example,
-                    epsilon=epsilon,
+                Logger.info(
+                    messages="Counter example from MIP is a real counter example"
                 )
+                assert ce_id != -1
 
-                ce_id: int
-                res_ce_check: bool
-                ce_id, res_ce_check = ce_checker.check()
-                Logger.debugging(messages=f"counter example check: {res_ce_check}")
+                Results.add(ce=counter_example, ce_id=ce_id, label=true_label)
 
-                if res_ce_check is False:
-                    Logger.error(messages="Counter example is not correct")
-                    # TODO: divide and conquer
-                    # TODO: tree based search...
-                    # ? How to divide the input domain?
-                    # ? What is the goal?
-                    # ? What is the termination condition?
-                else:
-                    Logger.info(
-                        messages="Counter example from MIP is a real counter example"
-                    )
-                    assert ce_id != -1
-
-                    Results.add(ce=counter_example, ce_id=ce_id, label=true_label)
-
-                    # * updating input domain
-                    vnnlib_filename: str = merge_inputs(
-                        all_inputs=all_images,
-                        removed_inputs=Results.get_unsatisfiable_inputs(
-                            label=true_label
-                        ),
-                        num_input_dimensions=networks.num_inputs,
-                        num_output_dimension=networks.num_outputs,
-                        true_label=true_label,
-                        epsilon=epsilon,
-                        mergedtype=mergedtype,
-                    )
-                    Logger.info(messages="updated the input domain")
-                    Logger.debugging(
-                        messages=f"removed: {Results.get_unsatisfiable_inputs(label=true_label)}"
-                    )
-
-                Logger.info(messages="SAT")
-
-    elif solver is VerificationSolver.CROWN:
-        Logger.info(messages="Verification Algorithm is CROWN")
-
-        result1 = crown_verifier(
-            onnx_file_path=onnx_filename, vnnlib_file_path=vnnlib_filename
-        )
-        Logger.debugging(messages=f"verification result: {result1}")
+                # * updating input domain
+                vnnlib_filename: str = merge_inputs(
+                    all_inputs=all_images,
+                    removed_inputs=Results.get_unsatisfiable_inputs(label=true_label),
+                    num_input_dimensions=networks.num_inputs,
+                    num_output_dimension=networks.num_outputs,
+                    true_label=true_label,
+                    epsilon=epsilon,
+                    mergedtype=mergedtype,
+                )
+                Logger.info(messages="updated the input domain")
+                Logger.debugging(
+                    messages=f"removed: {Results.get_unsatisfiable_inputs(label=true_label)}"
+                )
 
     Logger.info(messages=f"verification result: {result}")
 

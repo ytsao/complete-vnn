@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 import torchvision
 
+from util.read_results import Crown
 from util.log import Logger
 
 # from utils.parameters_networks import DataSet
@@ -19,8 +20,6 @@ import complete_verifier.arguments as arguments
 
 
 def crown_verifier(onnx_file_path: str, vnnlib_file_path: str) -> str:
-    result: str = "UNSAT"
-
     # * set configuration for abcrown
     parser = argparse.ArgumentParser("ABCROWN")
     parser.add_argument("--mode", type=str, default="debug")
@@ -52,8 +51,6 @@ def crown_verifier(onnx_file_path: str, vnnlib_file_path: str) -> str:
     abcrown.main()
     Logger.info("abcrown done")
 
-    Logger.debugging(abcrown.logger.verification_summary)
-    for item in abcrown.logger.bab_ret:
-        Logger.debugging(messages=[f"item: {item}"])
+    result: str = Crown.get_status("./out.txt")
 
     return result
