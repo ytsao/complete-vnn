@@ -6,7 +6,9 @@ from jax import numpy as jnp
 from .parameters_networks import NetworksStructure
 
 
-def write_vnnlib(data: jnp.ndarray, data_id: int, num_classes: int, true_label: int, epsilon: float) -> str:
+def write_vnnlib(
+    data: jnp.ndarray, data_id: int, num_classes: int, true_label: int, epsilon: float
+) -> str:
     """
     write the data to vnnlib file.
 
@@ -40,11 +42,14 @@ def write_vnnlib(data: jnp.ndarray, data_id: int, num_classes: int, true_label: 
             else:
                 f.write(f"\t(and (>= Y_{each_class} Y_{true_label}))\n")
         f.write("))\n")
+        f.flush()
 
     return file_path
 
 
-def export_vnnlib(lb: List[float], ub: List[float], num_classes: int, true_label: int, epsilon: float) -> str:
+def export_vnnlib(
+    lb: List[float], ub: List[float], num_classes: int, true_label: int, epsilon: float
+) -> str:
     """
     write the data to vnnlib file.
 
@@ -78,11 +83,19 @@ def export_vnnlib(lb: List[float], ub: List[float], num_classes: int, true_label
             else:
                 f.write(f"\t(and (>= Y_{each_class} Y_{true_label}))\n")
         f.write("))\n")
+        f.flush()
 
     return file_path
 
 
-def write_vnnlib_join(networks: NetworksStructure, data: jnp.ndarray, data_id: int, num_classes: int, true_label: int, epsilon: float) -> str:
+def write_vnnlib_join(
+    networks: NetworksStructure,
+    data: jnp.ndarray,
+    data_id: int,
+    num_classes: int,
+    true_label: int,
+    epsilon: float,
+) -> str:
     """
     * write the data to vnnlib file.
     * merge several property together into one file.
@@ -105,10 +118,8 @@ def write_vnnlib_join(networks: NetworksStructure, data: jnp.ndarray, data_id: i
 
         # * declare pre-conditions
         for id, each_pixel in enumerate(data):
-            ub: float = min(
-                1, max(networks.pre_condition[id][1], each_pixel+epsilon))
-            lb: float = max(
-                0, min(networks.pre_condition[id][0], each_pixel-epsilon))
+            ub: float = min(1, max(networks.pre_condition[id][1], each_pixel + epsilon))
+            lb: float = max(0, min(networks.pre_condition[id][0], each_pixel - epsilon))
             f.write(f"(assert (<= X_{id} {ub}))\n")
             f.write(f"(assert (>= X_{id} {lb}))\n\n")
         f.write("\n")
@@ -121,11 +132,19 @@ def write_vnnlib_join(networks: NetworksStructure, data: jnp.ndarray, data_id: i
             else:
                 f.write(f"\t(and (>= Y_{each_class} Y_{true_label}))\n")
         f.write("))\n")
+        f.flush()
 
     return file_path
 
 
-def write_vnnlib_meet(networks: NetworksStructure, data: jnp.ndarray, data_id: int, num_classes: int, true_label: int, epsilon: float) -> str:
+def write_vnnlib_meet(
+    networks: NetworksStructure,
+    data: jnp.ndarray,
+    data_id: int,
+    num_classes: int,
+    true_label: int,
+    epsilon: float,
+) -> str:
     """
     * write the data to vnnlib file.
     * meet several property together into one file.
@@ -148,10 +167,8 @@ def write_vnnlib_meet(networks: NetworksStructure, data: jnp.ndarray, data_id: i
 
         # * declare pre-conditions
         for id, each_pixel in enumerate(data):
-            ub: float = min(
-                1, min(networks.pre_condition[id][1], each_pixel+epsilon))
-            lb: float = max(
-                0, max(networks.pre_condition[id][0], each_pixel-epsilon))
+            ub: float = min(1, min(networks.pre_condition[id][1], each_pixel + epsilon))
+            lb: float = max(0, max(networks.pre_condition[id][0], each_pixel - epsilon))
             f.write(f"(assert (<= X_{id} {ub}))\n")
             f.write(f"(assert (>= X_{id} {lb}))\n\n")
         f.write("\n")
@@ -164,6 +181,7 @@ def write_vnnlib_meet(networks: NetworksStructure, data: jnp.ndarray, data_id: i
             else:
                 f.write(f"\t(and (>= Y_{each_class} Y_{true_label}))\n")
         f.write("))\n")
+        f.flush()
 
     return file_path
 

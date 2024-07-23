@@ -13,19 +13,24 @@ class SCIPModel(MIPOptimizer):
 
         return
 
-    def add_variable(self, lb: int | None, ub: int | None, vtype: str, name: str) -> None:
+    def add_variable(
+        self, lb: int | None, ub: int | None, vtype: str, name: str
+    ) -> None:
         """
         create single decision variable in MIP model.
         """
         if vtype == "B":
             self.solver.binary_variables[name] = self.solver._model.addVar(
-                lb=lb, ub=ub, vtype=vtype, name=name)
+                lb=lb, ub=ub, vtype=vtype, name=name
+            )
         elif vtype == "I":
             self.solver.integer_variables[name] = self.solver._model.addVar(
-                lb=lb, ub=ub, vtype=vtype, name=name)
+                lb=lb, ub=ub, vtype=vtype, name=name
+            )
         elif vtype == "C":
             self.solver.continue_variables[name] = self.solver._model.addVar(
-                lb=lb, ub=ub, vtype=vtype, name=name)
+                lb=lb, ub=ub, vtype=vtype, name=name
+            )
 
         return
 
@@ -48,16 +53,16 @@ class SCIPModel(MIPOptimizer):
 
         return
 
-    def add_max_constraint(self, max_variable: Any, variables: List[Any], name: str) -> None:
+    def add_max_constraint(
+        self, max_variable: Any, variables: List[Any], name: str
+    ) -> None:
         """
         create max constraint in MIP model.
         """
         for each_variable in variables:
-            self.solver._model.addCons(
-                max_variable >= each_variable, name=name)
+            self.solver._model.addCons(max_variable >= each_variable, name=name)
 
-        self.solver._model.addCons(
-            max_variable <= scip.quicksum(variables), name=name)
+        self.solver._model.addCons(max_variable <= scip.quicksum(variables), name=name)
 
         return
 
@@ -131,9 +136,11 @@ class SCIPModel(MIPOptimizer):
         after solving, we can use this function to check the solution status.
         if the solution status is infeasible or unbounded, you might not get the primal/dual solutions.
         """
-        msgdict: dict = {"optimal": "Optimal",
-                         "infeasible": "Infeasible",
-                         "unbounded": "Unbounded",
-                         "sollimit": "Feasible"}
+        msgdict: dict = {
+            "optimal": "Optimal",
+            "infeasible": "Infeasible",
+            "unbounded": "Unbounded",
+            "sollimit": "Feasible",
+        }
 
         return msgdict[self.solver._model.getStatus()]

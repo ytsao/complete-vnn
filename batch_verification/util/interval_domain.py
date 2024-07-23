@@ -8,9 +8,11 @@ class BoxDomain(AbstractDomain):
 
     num_boxes: int = 0
 
-    def __init__(self,
-                 _lower_bound: float = sys.float_info.min,
-                 _upper_bound: float = sys.float_info.max):
+    def __init__(
+        self,
+        _lower_bound: float = sys.float_info.min,
+        _upper_bound: float = sys.float_info.max,
+    ):
         super().__init__(_lower_bound=_lower_bound, _upper_bound=_upper_bound)
         self.name = f"box_{BoxDomain.num_boxes}"
         self.id = BoxDomain.num_boxes
@@ -37,7 +39,7 @@ class BoxDomain(AbstractDomain):
             self.lower_bound * other.lower_bound,
             self.lower_bound * other.upper_bound,
             self.upper_bound * other.lower_bound,
-            self.upper_bound * other.upper_bound
+            self.upper_bound * other.upper_bound,
         }
 
         self.lower_bound = min(B)
@@ -69,9 +71,11 @@ class BoxDomain(AbstractDomain):
 if __name__ == "__main__":
     # * test BoxDomain
     box_domain1: BoxDomain = BoxDomain.from_lower_and_upper_bound(
-        _lower_bound=-5.0, _upper_bound=1.0)
+        _lower_bound=-5.0, _upper_bound=1.0
+    )
     box_domain2: BoxDomain = BoxDomain.from_lower_and_upper_bound(
-        _lower_bound=1.0, _upper_bound=2.0)
+        _lower_bound=1.0, _upper_bound=2.0
+    )
     print("name: ", box_domain1.name)
     print("name: ", box_domain2.name)
     print("---------------------------------------------------------------")

@@ -12,7 +12,7 @@ general:
   show_adv_example: false  # Print the adversarial example.
   precompile_jit: false  # Precompile jit kernels to speed up after jit-wrapped functions, but will cost extra time at the beginning.
   complete_verifier: bab  # Complete verification verifier. "bab": branch and bound with beta-CROWN or GCP-CROWN; "mip": mixed integer programming (MIP) formulation; "bab-refine": branch and bound with intermediate layer bounds computed by MIP; "Customized": customized verifier, need to specially def by user.
-  enable_incomplete_verification: true  # Enable/Disable initial alpha-CROWN incomplete verification (disable this can save GPU memory).
+  enable_incomplete_verification: false  # Enable/Disable initial alpha-CROWN incomplete verification (disable this can save GPU memory).
   csv_name: null  # Name of .csv file containing a list of properties to verify (VNN-COMP specific).
   results_file: out.txt  # Path to results file.
   root_path: ''  # Root path of the specification folder if using vnnlib.
@@ -119,7 +119,7 @@ bab:
   timeout: 360  # Timeout (in second) for verifying one image/property.
   timeout_scale: 1  # Scale the timeout for development purpose.
   max_iterations: -1  # Maximum number of BaB iterations.
-  override_timeout: null  # Override timeout.
+  override_timeout: 100000000  # Override timeout.
   pruning_in_iteration: true  # Disable verified domain pruning within iteration.
   pruning_in_iteration_ratio: 0.2  # When ratio of positive domains >= this ratio, prunning in iteration optimization is open.
   sort_targets: false  # Sort targets before BaB.
@@ -177,7 +177,7 @@ bab:
       enhanced_branching_method: naive  # Specify a branching method if a problem cannot be verified after --input_split_enhanced_bound_patience.
       enhanced_bound_patience: 100000000.0  # Time in seconds that will use an enhanced bound propagation method (e.g., alpha-CROWN) to bound input split sub domains.
       attack_patience: 100000000.0  # Time in seconds that will start PGD attack to find adv examples during input split.
-      adv_check: 0  # After the number of visited nodes, we will run adv_check in input split.
+      adv_check: -1  # After the number of visited nodes, we will run adv_check in input split.
       split_partitions: 2  # How many domains to split to for each dimension at each time. By default, it is 2. In very few limited experimental cases, can change to larger numbers.
       sb_margin_weight: 1.0  # Weight for the margin term in the sb heuristic.
       sb_sum: false  # Use sum for multiple specs in sb.
@@ -187,16 +187,16 @@ bab:
       bf_batch_size: 100000  # A special batch size for brute force.
       bf_zero_crossing_score: false  # A zero crossing score in BF.
       touch_zero_score: 0  # A touch-zero score in BF.
-      ibp_enhancement: false  # Use IBP bounds to enhance.
+      ibp_enhancement: true  # Use IBP bounds to enhance.
       catch_assertion: false  # Catch assertion (when the bounds are extremely loose).
-      compare_with_old_bounds: false  # Compare bounds after an input split with bounds before the split and take the better one.
+      compare_with_old_bounds: true  # Compare bounds after an input split with bounds before the split and take the better one.
       update_rhs_with_attack: false  # Run attack during input split and update RHS. BaB does not stop even if any counterexample is found.
       sb_coeff_thresh: 0.001  # Clamp values of coefficient matrix (A matrix) for sb branching heuristic.
       sort_index: null  # The output index to use for sorting domains in the input split.
       sort_descending: true  # Sort input split domains in an ascending/descending way.
       show_progress: false  # Show progress during input split.
   attack:
-    enabled: false  # Enable beam search based BaB-attack.
+    enabled: true  # Enable beam search based BaB-attack.
     beam_candidates: 8  # Number of candidates in beam search.
     beam_depth: 7  # Max additional level of splits to expand during beam search in BaB-Attack.
     max_dive_fix_ratio: 0.8  # Maximum ratio of fixed neurons during diving in BaB-Attack.

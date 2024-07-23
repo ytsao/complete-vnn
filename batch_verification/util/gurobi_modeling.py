@@ -19,7 +19,9 @@ class GurobiModel(MIPOptimizer):
 
         return
 
-    def add_variable(self, lb: int | None, ub: int | None, vtype: str, name: str) -> None:
+    def add_variable(
+        self, lb: int | None, ub: int | None, vtype: str, name: str
+    ) -> None:
         """
         create single decision variable in MIP model.
         """
@@ -31,15 +33,18 @@ class GurobiModel(MIPOptimizer):
         if vtype == "B":
             vtype = GRB.BINARY
             self.solver.binary_variables[name] = self.solver._model.addVar(
-                lb=lb, ub=ub, vtype=vtype, name=name)
+                lb=lb, ub=ub, vtype=vtype, name=name
+            )
         elif vtype == "I":
             vtype = GRB.INTEGER
             self.solver.integer_variables[name] = self.solver._model.addVar(
-                lb=lb, ub=ub, vtype=vtype, name=name)
+                lb=lb, ub=ub, vtype=vtype, name=name
+            )
         elif vtype == "C":
             vtype = GRB.CONTINUOUS
             self.solver.continue_variables[name] = self.solver._model.addVar(
-                lb=lb, ub=ub, vtype=vtype, name=name)
+                lb=lb, ub=ub, vtype=vtype, name=name
+            )
 
         return
 
@@ -67,12 +72,13 @@ class GurobiModel(MIPOptimizer):
 
         return
 
-    def add_max_constraint(self, max_variable: Any, variables: List[Any], name: str) -> None:
+    def add_max_constraint(
+        self, max_variable: Any, variables: List[Any], name: str
+    ) -> None:
         """
         create max constraint in MIP model.
         """
-        self.solver._model.addConstr(
-            max_variable == gp.max_(variables), name=name)
+        self.solver._model.addConstr(max_variable == gp.max_(variables), name=name)
 
         return
 
@@ -145,7 +151,24 @@ class GurobiModel(MIPOptimizer):
         after solving, we can use this function to check the solution status.
         if the solution status is infeasible or unbounded, you might not get the primal/dual solutions.
         """
-        msgdict: dict = {GRB.LOADED: "Loaded", GRB.OPTIMAL: "Optimal", GRB.INFEASIBLE: "Infeasible", GRB.INF_OR_UNBD: "Infeasible or Unbounded", GRB.UNBOUNDED: "Unbounded", GRB.CUTOFF: "CutOff", GRB.ITERATION_LIMIT: "IterationLimit", GRB.NODE_LIMIT: "NodeLimit", GRB.TIME_LIMIT: "TimeLimit",
-                         GRB.SOLUTION_LIMIT: "SolutionLimit", GRB.INTERRUPTED: "Interrupted", GRB.NUMERIC: "Numeric", GRB.SUBOPTIMAL: "SubOptimal", GRB.INPROGRESS: "InProgress", GRB.USER_OBJ_LIMIT: "UserObjLimit", GRB.WORK_LIMIT: "WorkLimit", GRB.MEM_LIMIT: "MemoryLimit"}
+        msgdict: dict = {
+            GRB.LOADED: "Loaded",
+            GRB.OPTIMAL: "Optimal",
+            GRB.INFEASIBLE: "Infeasible",
+            GRB.INF_OR_UNBD: "Infeasible or Unbounded",
+            GRB.UNBOUNDED: "Unbounded",
+            GRB.CUTOFF: "CutOff",
+            GRB.ITERATION_LIMIT: "IterationLimit",
+            GRB.NODE_LIMIT: "NodeLimit",
+            GRB.TIME_LIMIT: "TimeLimit",
+            GRB.SOLUTION_LIMIT: "SolutionLimit",
+            GRB.INTERRUPTED: "Interrupted",
+            GRB.NUMERIC: "Numeric",
+            GRB.SUBOPTIMAL: "SubOptimal",
+            GRB.INPROGRESS: "InProgress",
+            GRB.USER_OBJ_LIMIT: "UserObjLimit",
+            GRB.WORK_LIMIT: "WorkLimit",
+            GRB.MEM_LIMIT: "MemoryLimit",
+        }
 
         return msgdict[self.solver._model.status]

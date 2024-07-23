@@ -1,11 +1,11 @@
 from typing import Dict, List
 
-import jax.numpy as jnp 
+import jax.numpy as jnp
+
 
 class Results:
     counter_examples: Dict[int, List[jnp.ndarray]] = {}
     unsatisfiable_inputs: Dict[int, List[int]] = {}
-    
 
     @staticmethod
     def add(ce_id: int, ce: jnp.ndarray, label: int) -> None:
@@ -14,7 +14,6 @@ class Results:
             Results.unsatisfiable_inputs[label] = []
         Results.unsatisfiable_inputs[label].append(ce_id)
         Results.counter_examples[label].append(ce)
-    
 
     @staticmethod
     def get_unsatisfiable_inputs(label: int) -> List[int]:

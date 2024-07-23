@@ -2,12 +2,17 @@ from typing import List, Tuple
 
 import jax.numpy as jnp
 
+
 class Checker:
-    def __init__(self, all_images: List[jnp.ndarray], counter_example: jnp.ndarray, epsilon: float):
+    def __init__(
+        self,
+        all_images: List[jnp.ndarray],
+        counter_example: jnp.ndarray,
+        epsilon: float,
+    ):
         self.epsilon = epsilon
         self.all_images = all_images
         self.ce = counter_example
-
 
     def check(self) -> Tuple[int, bool]:
         ce_id: int = -1

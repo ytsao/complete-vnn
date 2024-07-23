@@ -1,9 +1,12 @@
 from collections import defaultdict
 from typing import List, Dict
 import os
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' # disable information and warning from tensorflow
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = (
+    "3"  # disable information and warning from tensorflow
+)
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import argparse
 
 from matplotlib import pyplot as plt
@@ -20,9 +23,15 @@ from util.gurobi_modeling import GurobiModel
 from util.scip_modeling import SCIPModel
 from util.mip_modeling import Model
 from util.read_dataset import extract_network_structure, load_dataset
+from util.read_results import Crown
 from util.parameters_networks import NetworksStructure, DataSet
-from util.write_vnnlib import write_vnnlib, write_vnnlib_join, write_vnnlib_meet, export_vnnlib
-from util.merge_inputs import meet, join
+from util.write_vnnlib import (
+    write_vnnlib,
+    write_vnnlib_join,
+    write_vnnlib_meet,
+    export_vnnlib,
+)
+from util.merge_inputs import merge_inputs
 from util.options import InputMergedBy, VerificationSolver, Mode
 from util.save_results import Results
 from util.log import Logger
@@ -32,13 +41,15 @@ from util.log import Logger
 
 
 # TODO: implement verification algorithm in different ways
-def verify(solver: VerificationSolver, 
-           onnx_filename: str, 
-           vnnlib_filename: str, 
-           all_images: List[jnp.ndarray],
-           mergedtype: InputMergedBy, 
-           true_label: int,  
-           epsilon: float) -> str:
+def verify(
+    solver: VerificationSolver,
+    onnx_filename: str,
+    vnnlib_filename: str,
+    all_images: List[jnp.ndarray],
+    mergedtype: InputMergedBy,
+    true_label: int,
+    epsilon: float,
+) -> str:
     """
     Verification algorithm:
 
@@ -50,12 +61,15 @@ def verify(solver: VerificationSolver,
     Logger.debugging(messages=f"tes: {type(VerificationSolver.CROWN)}")
     if solver is VerificationSolver.SCIP or solver is VerificationSolver.GUROBI:
         Logger.info(messages=f"Verification Algorithm is MIP solver ({solver})")
-        
-        while not res_ce_check: # ! refine this condition
-            networks: NetworksStructure = extract_network_structure(onnx_file_path=onnx_filename, 
-                                                                vnnlib_file_path=vnnlib_filename)
-            m: SCIPModel | GurobiModel = mip_verifier(solver_name=solver, networks=networks)
-            
+
+        while not res_ce_check:  # ! refine this condition
+            networks: NetworksStructure = extract_network_structure(
+                onnx_file_path=onnx_filename, vnnlib_file_path=vnnlib_filename
+            )
+            m: SCIPModel | GurobiModel = mip_verifier(
+                solver_name=solver, networks=networks
+            )
+
             if m.get_solution_status() == "Infeasible":
                 result: str = "UNSAT"
                 break
@@ -73,13 +87,15 @@ def verify(solver: VerificationSolver,
                     else:
                         break
                 counter_example: jnp.ndarray = jnp.array(counter_example)
-                
-                ce_checker: Checker = Checker(all_images=all_images, 
-                                              counter_example=counter_example, 
-                                              epsilon=epsilon)
-                
-                ce_id:int 
-                res_ce_check: bool 
+
+                ce_checker: Checker = Checker(
+                    all_images=all_images,
+                    counter_example=counter_example,
+                    epsilon=epsilon,
+                )
+
+                ce_id: int
+                res_ce_check: bool
                 ce_id, res_ce_check = ce_checker.check()
                 Logger.debugging(messages=f"counter example check: {res_ce_check}")
 
@@ -90,41 +106,41 @@ def verify(solver: VerificationSolver,
                     # ? How to divide the input domain?
                     # ? What is the goal?
                     # ? What is the termination condition?
-                else: 
-                    Logger.info(messages="Counter example from MIP is a real counter example")
+                else:
+                    Logger.info(
+                        messages="Counter example from MIP is a real counter example"
+                    )
                     assert ce_id != -1
 
-
                     Results.add(ce=counter_example, ce_id=ce_id, label=true_label)
-                    
-                    # * updating input domain
-                    if mergedtype is InputMergedBy.JOIN:
-                        each_pixel_lb, each_pixel_ub = join(all_inputs=all_images, 
-                                                            removed_inputs=Results.get_unsatisfiable_inputs(label=true_label), 
-                                                            num_dimensions=networks.num_inputs, 
-                                                            epsilon=epsilon)
-                    elif mergedtype is InputMergedBy.MEET:
-                        each_pixel_lb, each_pixel_ub = meet(all_inputs=all_images, 
-                                                            num_dimensions=networks.num_inputs, 
-                                                            epsilon=epsilon)
 
-                    vnnlib_filename = export_vnnlib(lb=each_pixel_lb,
-                                                    ub=each_pixel_ub,
-                                                    num_classes=networks.num_outputs,
-                                                    true_label=true_label,
-                                                    epsilon=epsilon)
+                    # * updating input domain
+                    vnnlib_filename: str = merge_inputs(
+                        all_inputs=all_images,
+                        removed_inputs=Results.get_unsatisfiable_inputs(
+                            label=true_label
+                        ),
+                        num_input_dimensions=networks.num_inputs,
+                        num_output_dimension=networks.num_outputs,
+                        true_label=true_label,
+                        epsilon=epsilon,
+                        mergedtype=mergedtype,
+                    )
                     Logger.info(messages="updated the input domain")
-                    Logger.debugging(messages=f"removed: {Results.get_unsatisfiable_inputs(label=true_label)}")
-                
+                    Logger.debugging(
+                        messages=f"removed: {Results.get_unsatisfiable_inputs(label=true_label)}"
+                    )
 
                 Logger.info(messages="SAT")
 
     elif solver is VerificationSolver.CROWN:
         Logger.info(messages="Verification Algorithm is CROWN")
 
-        result = crown_verifier(onnx_file_path=onnx_filename,
-                                vnnlib_file_path=vnnlib_filename)
-    
+        result1 = crown_verifier(
+            onnx_file_path=onnx_filename, vnnlib_file_path=vnnlib_filename
+        )
+        Logger.debugging(messages=f"verification result: {result1}")
+
     Logger.info(messages=f"verification result: {result}")
 
     return result
@@ -132,7 +148,7 @@ def verify(solver: VerificationSolver,
 
 def debug(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     """
-    Batch verification algorithm: 
+    Batch verification algorithm:
         step 0: read the input files (onnx, image files)
 
         step 1: filter correct classification results from testing dataset.
@@ -143,15 +159,15 @@ def debug(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
         step 4: define abstract domain, 𝒜 for each cluster.
         step 5: Verify 𝒜 -> r.
                     if r is UNSAT: STOP
-                    else: 
+                    else:
                         divide 𝒜 into 𝒜_1, 𝒜_2,..., 𝒜_n
-                        back to step 5 to verify each 𝒜_i 
+                        back to step 5 to verify each 𝒜_i
 
     Purpose:
         1. Reduce training data to train robust NN.
         2. Accelerate overall verification process.
         3. When we retrain NN, we have to verify the property again, so this might help to reduce the cost.
-    
+
     Logger:
         debugging: # * for show the intermediate results.
         info: # * for show the main results.
@@ -169,8 +185,12 @@ def debug(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     # *  ************************  * #
     # *  step 1. filter correct classification results from testing dataset.
     # *  ************************  * #
-    Logger.info(messages="step 1: filter correct classification results from testing dataset")
-    session = ort.InferenceSession(onnx_filename, providers=ort.get_available_providers())
+    Logger.info(
+        messages="step 1: filter correct classification results from testing dataset"
+    )
+    session = ort.InferenceSession(
+        onnx_filename, providers=ort.get_available_providers()
+    )
     input_name = session.get_inputs()[0].name
     output_name = session.get_outputs()[0].name
 
@@ -200,8 +220,14 @@ def debug(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     num_test_images: int = len(dataset.test_images)
     Logger.debugging(messages=f"number of images in testing dataset: {num_test_images}")
     for data_id in range(num_test_images):
-        inference_result = session.run([output_name],
-                                       {input_name: dataset.test_images[data_id].astype(jnp.float32).reshape(1, dataset.num_pixels, 1)})[0]
+        inference_result = session.run(
+            [output_name],
+            {
+                input_name: dataset.test_images[data_id]
+                .astype(jnp.float32)
+                .reshape(1, dataset.num_pixels, 1)
+            },
+        )[0]
         inference_label = jnp.argmax(inference_result)
         true_label = dataset.test_labels[data_id]
         if inference_label == true_label:
@@ -210,7 +236,9 @@ def debug(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
 
     Logger.debugging(messages=f"filterd_test_images: {len(filterd_test_images)}")
     Logger.debugging(messages=f"filterd_test_labels: {len(filterd_test_labels)}")
-    Logger.debugging(messages=f"test accuracy: {len(filterd_test_images) / num_test_images}")
+    Logger.debugging(
+        messages=f"test accuracy: {len(filterd_test_images) / num_test_images}"
+    )
 
     # *  ************************  * #
     # *  step 2. based on each label, separate into different groups.
@@ -221,24 +249,32 @@ def debug(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     for index, label in enumerate(filterd_test_labels):
         distribution_filtered_test_labels[label].append(filterd_test_images[index])
     for label in range(dataset.num_labels):
-        Logger.debugging(messages=f"label: {label}, number of images: {len(distribution_filtered_test_labels[label])}")
+        Logger.debugging(
+            messages=f"label: {label}, number of images: {len(distribution_filtered_test_labels[label])}"
+        )
 
     # *  ************************  * #
     # *  step 3. similarity analysis
     # *  ************************  * #
     type_of_property: InputMergedBy = InputMergedBy.JOIN
     vnnlib_filename: str = ""
-    test_true_label: int = 0        # YES: 0,    Y3(1)
+    test_true_label: int = 0  # YES: 0,    Y3(1)
     epsilon: float = 0.03
     count: int = 0
     distance_matrix: jnp.ndarray
-    Logger.debugging(messages=f"number of testing images: {len(distribution_filtered_test_labels[test_true_label])}")
-    distance_matrix = Similarity.generate_distance_matrix(all_data=distribution_filtered_test_labels[test_true_label], 
-                                                       distance_type="l2", 
-                                                       chunk_size=100)  # ! out of memory
+    Logger.debugging(
+        messages=f"number of testing images: {len(distribution_filtered_test_labels[test_true_label])}"
+    )
+    distance_matrix = Similarity.generate_distance_matrix(
+        all_data=distribution_filtered_test_labels[test_true_label],
+        distance_type="l2",
+        chunk_size=100,
+    )  # ! out of memory
 
     # * find the similar data
-    similarity_data: List[int] = Similarity.greedy(distance_matrix=distance_matrix, num_clusters=2)
+    similarity_data: List[int] = Similarity.greedy(
+        distance_matrix=distance_matrix, num_clusters=2
+    )
     Logger.debugging(messages=f"similarity_data: {similarity_data}")
 
     # TODO: Test merge abstract domain if possible
@@ -248,48 +284,60 @@ def debug(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     for id in test_set_inputs:
         if type_of_property is InputMergedBy.JOIN:
             if id == test_set_inputs[0]:
-                vnnlib_filename: str = write_vnnlib(data=distribution_filtered_test_labels[test_true_label][id],
-                                                    data_id=id,
-                                                    num_classes=dataset.num_labels,
-                                                    true_label=test_true_label,
-                                                    epsilon=epsilon)
+                vnnlib_filename: str = write_vnnlib(
+                    data=distribution_filtered_test_labels[test_true_label][id],
+                    data_id=id,
+                    num_classes=dataset.num_labels,
+                    true_label=test_true_label,
+                    epsilon=epsilon,
+                )
             else:
                 os.remove(vnnlib_filename)
-                vnnlib_filename: str = write_vnnlib_join(networks=networks,
-                                                          data=distribution_filtered_test_labels[test_true_label][id],
-                                                          data_id=id,
-                                                          num_classes=dataset.num_labels,
-                                                          true_label=test_true_label,
-                                                          epsilon=epsilon)
+                vnnlib_filename: str = write_vnnlib_join(
+                    networks=networks,
+                    data=distribution_filtered_test_labels[test_true_label][id],
+                    data_id=id,
+                    num_classes=dataset.num_labels,
+                    true_label=test_true_label,
+                    epsilon=epsilon,
+                )
         elif type_of_property is InputMergedBy.MEET:
             if id == test_set_inputs[0]:
                 # if True:
-                vnnlib_filename: str = write_vnnlib(data=distribution_filtered_test_labels[test_true_label][id],
-                                                    data_id=id,
-                                                    num_classes=dataset.num_labels,
-                                                    true_label=test_true_label,
-                                                    epsilon=epsilon)
+                vnnlib_filename: str = write_vnnlib(
+                    data=distribution_filtered_test_labels[test_true_label][id],
+                    data_id=id,
+                    num_classes=dataset.num_labels,
+                    true_label=test_true_label,
+                    epsilon=epsilon,
+                )
             else:
                 os.remove(vnnlib_filename)
-                vnnlib_filename: str = write_vnnlib_meet(networks=networks,
-                                                          data=distribution_filtered_test_labels[test_true_label][id],
-                                                          data_id=id,
-                                                          num_classes=dataset.num_labels,
-                                                          true_label=test_true_label,
-                                                          epsilon=epsilon)
+                vnnlib_filename: str = write_vnnlib_meet(
+                    networks=networks,
+                    data=distribution_filtered_test_labels[test_true_label][id],
+                    data_id=id,
+                    num_classes=dataset.num_labels,
+                    true_label=test_true_label,
+                    epsilon=epsilon,
+                )
 
         # * update networks by new vnnlib
-        networks: NetworksStructure = extract_network_structure(onnx_filename, vnnlib_filename)
+        networks: NetworksStructure = extract_network_structure(
+            onnx_filename, vnnlib_filename
+        )
 
     Logger.info(messages="start verifying ...")
-    result: str = verify(solver=solver, 
-                         onnx_filename=onnx_filename, 
-                         vnnlib_filename=vnnlib_filename,
-                         all_images=distribution_filtered_test_labels[test_true_label],
-                         mergedtype=mergedtype,
-                         true_label=test_true_label,
-                         epsilon=epsilon)
-    
+    result: str = verify(
+        solver=solver,
+        onnx_filename=onnx_filename,
+        vnnlib_filename=vnnlib_filename,
+        all_images=distribution_filtered_test_labels[test_true_label],
+        mergedtype=mergedtype,
+        true_label=test_true_label,
+        epsilon=epsilon,
+    )
+
     # m: SCIPModel | GurobiModel = mip_verifier(solver_name=solver, networks=networks)
     # counter_example: List[float] = []
     # if m.get_solution_status() == "Infeasible":
@@ -331,7 +379,7 @@ def debug(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
 
 def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     """
-    Batch verification algorithm: 
+    Batch verification algorithm:
         step 0: read the input files (onnx, image files)
 
         step 1: filter correct classification results from testing dataset.
@@ -342,9 +390,9 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
         step 4: define abstract domain, 𝒜 for each cluster.
         step 5: Verify 𝒜 -> r.
                     if r is UNSAT: STOP
-                    else: 
+                    else:
                         divide 𝒜 into 𝒜_1, 𝒜_2,..., 𝒜_n
-                        back to step 5 to verify each 𝒜_i 
+                        back to step 5 to verify each 𝒜_i
 
     Purpose:
         1. Reduce training data to train robust NN.
@@ -363,8 +411,12 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     # *  ************************  * #
     # *  step 1. filter correct classification results from testing dataset.
     # *  ************************  * #
-    Logger.info(messages="step 1: filter correct classification results from testing dataset")
-    session = ort.InferenceSession(onnx_filename, providers=ort.get_available_providers())
+    Logger.info(
+        messages="step 1: filter correct classification results from testing dataset"
+    )
+    session = ort.InferenceSession(
+        onnx_filename, providers=ort.get_available_providers()
+    )
     input_name = session.get_inputs()[0].name
     output_name = session.get_outputs()[0].name
 
@@ -394,8 +446,14 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     num_test_images: int = len(dataset.test_images)
     Logger.debugging(messages=f"number of images in testing dataset: {num_test_images}")
     for data_id in range(num_test_images):
-        inference_result = session.run([output_name],
-                                       {input_name: dataset.test_images[data_id].astype(jnp.float32).reshape(1, dataset.num_pixels, 1)})[0]
+        inference_result = session.run(
+            [output_name],
+            {
+                input_name: dataset.test_images[data_id]
+                .astype(jnp.float32)
+                .reshape(1, dataset.num_pixels, 1)
+            },
+        )[0]
         inference_label = jnp.argmax(inference_result)
         true_label = dataset.test_labels[data_id]
         if inference_label == true_label:
@@ -404,62 +462,69 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
 
     Logger.debugging(messages=f"filterd_test_images: {len(filterd_test_images)}")
     Logger.debugging(messages=f"filterd_test_labels: {len(filterd_test_labels)}")
-    Logger.debugging(messages=f"test accuracy: {len(filterd_test_images) / num_test_images}")
+    Logger.debugging(
+        messages=f"test accuracy: {len(filterd_test_images) / num_test_images}"
+    )
 
     # *  ************************  * #
     # *  step 2. based on each label, separate into different groups.
     # *  ************************  * #
-    distribution_filtered_test_labels: Dict[int, List[jnp.ndarray]] = {} # * key: label, value: images
+    distribution_filtered_test_labels: Dict[int, List[jnp.ndarray]] = (
+        {}
+    )  # * key: label, value: images
     for label in range(dataset.num_labels):
         distribution_filtered_test_labels[label] = []
     for index, label in enumerate(filterd_test_labels):
         distribution_filtered_test_labels[label].append(filterd_test_images[index])
     for label in range(dataset.num_labels):
-        Logger.debugging(messages=f"label: {label}, number of images: {len(distribution_filtered_test_labels[label])}")
+        Logger.debugging(
+            messages=f"label: {label}, number of images: {len(distribution_filtered_test_labels[label])}"
+        )
 
     # *  ************************  * #
     # *  step 3. similarity analysis
     # *  ************************  * #
     vnnlib_filename: str = ""
-    test_true_label: int = 0        # YES: 0,    Y3(1)
+    test_true_label: int = 0  # YES: 0,    Y3(1)
     epsilon: float = 0.03
     count: int = 0
     distance_matrix: jnp.ndarray
-    Logger.debugging(messages=f"number of testing images: {len(distribution_filtered_test_labels[test_true_label])}")
-    distance_matrix = Similarity.generate_distance_matrix(all_data=distribution_filtered_test_labels[test_true_label], 
-                                                       distance_type="l2", 
-                                                       chunk_size=100) 
+    Logger.debugging(
+        messages=f"number of testing images: {len(distribution_filtered_test_labels[test_true_label])}"
+    )
+    distance_matrix = Similarity.generate_distance_matrix(
+        all_data=distribution_filtered_test_labels[test_true_label],
+        distance_type="l2",
+        chunk_size=100,
+    )
 
     # * find the similar data
-    similarity_data: List[int] = Similarity.greedy(distance_matrix=distance_matrix, num_clusters=2)
+    similarity_data: List[int] = Similarity.greedy(
+        distance_matrix=distance_matrix, num_clusters=2
+    )
 
     # * merge abstract domain if possible
-    each_pixel_lb: List[float]
-    each_pixel_ub: List[float]
-    if mergedtype is InputMergedBy.MEET:
-        each_pixel_lb, each_pixel_ub = meet(all_inputs=distribution_filtered_test_labels[test_true_label], 
-                                            num_dimensions=dataset.num_pixels, 
-                                            epsilon=epsilon)
-    elif mergedtype is InputMergedBy.JOIN:
-        each_pixel_lb, each_pixel_ub = join(all_inputs=distribution_filtered_test_labels[test_true_label], 
-                                            num_dimensions=dataset.num_pixels, 
-                                            epsilon=epsilon)
-
     # * update networks by new vnnlib
-    vnnlib_filename = export_vnnlib(lb=each_pixel_lb, 
-                                    ub=each_pixel_ub,
-                                    num_classes=dataset.num_labels, 
-                                    true_label=test_true_label, 
-                                    epsilon=epsilon)
+    vnnlib_filename: str = merge_inputs(
+        all_inputs=distribution_filtered_test_labels[test_true_label],
+        removed_inputs=[],
+        num_input_dimensions=dataset.num_pixels,
+        num_output_dimension=dataset.num_labels,
+        true_label=test_true_label,
+        epsilon=epsilon,
+        mergedtype=mergedtype,
+    )
 
     Logger.info(messages="start verifying ...")
-    result: str = verify(solver=solver, 
-                         onnx_filename=onnx_filename, 
-                         vnnlib_filename=vnnlib_filename,
-                         all_images=distribution_filtered_test_labels[test_true_label],
-                         mergedtype=mergedtype,
-                         true_label=test_true_label,
-                         epsilon=epsilon)
+    result: str = verify(
+        solver=solver,
+        onnx_filename=onnx_filename,
+        vnnlib_filename=vnnlib_filename,
+        all_images=distribution_filtered_test_labels[test_true_label],
+        mergedtype=mergedtype,
+        true_label=test_true_label,
+        epsilon=epsilon,
+    )
 
     # m: SCIPModel | GurobiModel = mip_verifier(solver_name=solver, networks=networks)
     # counter_example: List[float] = []
@@ -500,9 +565,11 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     return result
 
 
-def main(mode: Mode = Mode.DEBUG, 
-         solver: VerificationSolver = VerificationSolver.SCIP,
-         mergedtype: InputMergedBy = InputMergedBy.JOIN) -> str:
+def main(
+    mode: Mode = Mode.DEBUG,
+    solver: VerificationSolver = VerificationSolver.SCIP,
+    mergedtype: InputMergedBy = InputMergedBy.JOIN,
+) -> str:
     Logger.initialize(filename="log.txt", with_log_file=False)
     Logger.info(messages="batch verification is starting...")
 
@@ -517,14 +584,15 @@ def main(mode: Mode = Mode.DEBUG,
 
     return "main version"
 
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    
+
     parser.add_argument("--mode", type=str, default="debug")
     parser.add_argument("--solver", type=str, default="scip")
     parser.add_argument("--mergedtype", type=str, default="join")
-    
+
     args = parser.parse_args()
     mode: Mode = Mode(args.mode)
     solver: VerificationSolver = VerificationSolver(args.solver)

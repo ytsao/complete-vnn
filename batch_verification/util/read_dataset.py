@@ -11,7 +11,8 @@ from onnx import numpy_helper
 import numpy as np
 
 import tensorflow as tf
-tf.config.set_visible_devices([], device_type='GPU')
+
+tf.config.set_visible_devices([], device_type="GPU")
 
 
 def _read_onnx_model(onnx_file_path: str) -> onnx.ModelProto:
@@ -103,22 +104,23 @@ def load_dataset(dataset_name: str) -> DataSet:
 
     data_dir = f"./dataset/{dataset_name}"
 
-    data, info = tfds.load(name=dataset_name, batch_size=-1,
-                           data_dir=data_dir, with_info=True)
+    data, info = tfds.load(
+        name=dataset_name, batch_size=-1, data_dir=data_dir, with_info=True
+    )
     data = tfds.as_numpy(data)
-    train_data, test_data = data['train'], data['test']
-    num_labels = info.features['label'].num_classes
-    h, w, c = info.features['image'].shape
+    train_data, test_data = data["train"], data["test"]
+    num_labels = info.features["label"].num_classes
+    h, w, c = info.features["image"].shape
     num_pixels = h * w * c
 
     # Full train set
-    train_images, train_labels = train_data['image'], train_data['label']
+    train_images, train_labels = train_data["image"], train_data["label"]
     train_images = jnp.reshape(train_images, (len(train_images), num_pixels))
     train_images = train_images / 255.0
     # train_labels = _one_hot(train_labels, num_labels) # no training, no need to one-hot encoding
 
     # Full test set
-    test_images, test_labels = test_data['image'], test_data['label']
+    test_images, test_labels = test_data["image"], test_data["label"]
     test_images = jnp.reshape(test_images, (len(test_images), num_pixels))
     test_images = test_images / 255.0
     # test_labels = _one_hot(test_labels, num_labels)   # no training, no need to one-hot encoding
@@ -137,7 +139,9 @@ def load_dataset(dataset_name: str) -> DataSet:
     return dataset
 
 
-def extract_network_structure(onnx_file_path: str, vnnlib_file_path: str) -> NetworksStructure:
+def extract_network_structure(
+    onnx_file_path: str, vnnlib_file_path: str
+) -> NetworksStructure:
     onnx_model: onnx.ModelProto = _read_onnx_model(onnx_file_path)
     num_inputs: int = _get_num_inputs(onnx_model)
     num_outputs: int = _get_num_outputs(onnx_model)
@@ -169,13 +173,15 @@ def extract_network_structure(onnx_file_path: str, vnnlib_file_path: str) -> Net
 
 def _test():
     onnx_model: onnx.ModelProto = _read_onnx_model(
-        "./benchmarks/onnx/ACASXU_run2a_1_1_batch_2000.onnx")
+        "./benchmarks/onnx/ACASXU_run2a_1_1_batch_2000.onnx"
+    )
     num_inputs: int = _get_num_inputs(onnx_model)
     num_outputs: int = _get_num_outputs(onnx_model)
     print("num_inputs: ", num_inputs)
     print("num_outputs: ", num_outputs)
     vnnlib_spec = _read_vnnlib_spec(
-        "./benchmarks/vnnlib/prop_7.vnnlib", num_inputs, num_outputs)
+        "./benchmarks/vnnlib/prop_7.vnnlib", num_inputs, num_outputs
+    )
     # vnnlib_spec = _read_vnnlib_spec("./benchmarks/vnnlib/test_small.vnnlib", num_inputs, num_outputs)
 
     input_region = vnnlib_spec[0][0]
@@ -184,8 +190,8 @@ def _test():
     # print information
     print(vnnlib_spec)
     print(len(vnnlib_spec[0]))
-    print(vnnlib_spec[0][0])    # input region
-    print(vnnlib_spec[0][1])    # output region
+    print(vnnlib_spec[0][0])  # input region
+    print(vnnlib_spec[0][1])  # output region
     print("number of output conditions:")
     print(len(vnnlib_spec[0][1]))
     print(type(vnnlib_spec[0][1]))
@@ -211,6 +217,8 @@ def _test():
 if __name__ == "__main__":
     # _test()
     networks: NetworksStructure = extract_network_structure(
-        "./benchmarks/onnx/ACASXU_run2a_1_1_batch_2000.onnx", "./benchmarks/vnnlib/prop_7.vnnlib")
+        "./benchmarks/onnx/ACASXU_run2a_1_1_batch_2000.onnx",
+        "./benchmarks/vnnlib/prop_7.vnnlib",
+    )
     print(networks)
     print("Done!")

@@ -9,13 +9,13 @@ import torch.nn as nn
 import torchvision
 
 from util.log import Logger
+
 # from utils.parameters_networks import DataSet
 # from utils.read_dataset import load_dataset
 
 # from arguments import ConfigHandler
 from complete_verifier.abcrown import ABCROWN
-import complete_verifier.arguments as arguments 
-
+import complete_verifier.arguments as arguments
 
 
 def crown_verifier(onnx_file_path: str, vnnlib_file_path: str) -> str:
@@ -25,7 +25,9 @@ def crown_verifier(onnx_file_path: str, vnnlib_file_path: str) -> str:
     parser = argparse.ArgumentParser("ABCROWN")
     parser.add_argument("--mode", type=str, default="debug")
     parser.add_argument("--solver", type=str, default="crown")
-    parser.add_argument("--config", type=str, default="./util/crown_config/default.yaml")
+    parser.add_argument(
+        "--config", type=str, default="./util/crown_config/default.yaml"
+    )
     # parser.add_argument("--timeout", type=int, default=360)
     parser.add_argument("--onnx_path", type=str, default=onnx_file_path)
     parser.add_argument("--vnnlib_path", type=str, default=vnnlib_file_path)
@@ -42,12 +44,16 @@ def crown_verifier(onnx_file_path: str, vnnlib_file_path: str) -> str:
         "--robustness_type=all-positive",
         "--enable_input_split",
         "--branching_method=sb",
-        "--sb_coeff_thresh=0.01"
+        "--sb_coeff_thresh=0.01",
     ]
 
     abcrown: ABCROWN = ABCROWN(args=abcrown_args)
     Logger.info("Executing abcrown")
     abcrown.main()
     Logger.info("abcrown done")
+
+    Logger.debugging(abcrown.logger.verification_summary)
+    for item in abcrown.logger.bab_ret:
+        Logger.debugging(messages=[f"item: {item}"])
 
     return result

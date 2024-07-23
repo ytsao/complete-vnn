@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 
 import pyscipopt
+
 try:
     import gurobipy as gp
     from gurobipy import GRB
@@ -18,11 +19,14 @@ class Model:
     # from gurobi or scip module, only for gurobi_modeling or scip_modeling used
     _model: gp.Model | pyscipopt.Model = field(init=False)
     binary_variables: defaultdict[Dict] = field(
-        default_factory=lambda: defaultdict(Dict))
+        default_factory=lambda: defaultdict(Dict)
+    )
     integer_variables: defaultdict[Dict] = field(
-        default_factory=lambda: defaultdict(Dict))
+        default_factory=lambda: defaultdict(Dict)
+    )
     continue_variables: defaultdict[Dict] = field(
-        default_factory=lambda: defaultdict(Dict))
+        default_factory=lambda: defaultdict(Dict)
+    )
 
     timelimits: int = field(default=60)  # default: 1 minute
 
@@ -30,7 +34,9 @@ class Model:
 class MIPOptimizer(ABC):
 
     @abstractmethod
-    def add_variable(self, lb: int | None, ub: int | None, vtype: str, name: str) -> None:
+    def add_variable(
+        self, lb: int | None, ub: int | None, vtype: str, name: str
+    ) -> None:
         pass
 
     @abstractmethod
@@ -42,7 +48,9 @@ class MIPOptimizer(ABC):
         pass
 
     @abstractmethod
-    def add_max_constraint(self, max_variable: Any, variables: List[Any], name: str) -> None:
+    def add_max_constraint(
+        self, max_variable: Any, variables: List[Any], name: str
+    ) -> None:
         pass
 
     @abstractmethod
