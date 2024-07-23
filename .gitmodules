@@ -1,0 +1,6 @@
+[submodule "batch_verification/alpha-beta-CROWN/complete_verifier"]
+	path = batch_verification/alpha-beta-CROWN/complete_verifier
+	url = https://github.com/Verified-Intelligence/alpha-beta-CROWN.git
+[submodule "batch_verification/alpha-beta-CROWN/auto_LiRPA"]
+	path = batch_verification/alpha-beta-CROWN/auto_LiRPA
+	url = git@github.com:Verified-Intelligence/auto_LiRPA.git
