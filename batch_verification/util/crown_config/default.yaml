@@ -12,7 +12,7 @@ general:
   show_adv_example: false  # Print the adversarial example.
   precompile_jit: false  # Precompile jit kernels to speed up after jit-wrapped functions, but will cost extra time at the beginning.
   complete_verifier: bab  # Complete verification verifier. "bab": branch and bound with beta-CROWN or GCP-CROWN; "mip": mixed integer programming (MIP) formulation; "bab-refine": branch and bound with intermediate layer bounds computed by MIP; "Customized": customized verifier, need to specially def by user.
-  enable_incomplete_verification: false  # Enable/Disable initial alpha-CROWN incomplete verification (disable this can save GPU memory).
+  enable_incomplete_verification: true  # Enable/Disable initial alpha-CROWN incomplete verification (disable this can save GPU memory).
   csv_name: null  # Name of .csv file containing a list of properties to verify (VNN-COMP specific).
   results_file: out.txt  # Path to results file.
   root_path: ''  # Root path of the specification folder if using vnnlib.

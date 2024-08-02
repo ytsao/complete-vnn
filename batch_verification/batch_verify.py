@@ -44,8 +44,8 @@ from util.log import Logger
 def verify(
     solver: VerificationSolver,
     onnx_filename: str,
-    vnnlib_filename: str,
-    all_images: List[jnp.ndarray],
+    dataset: DataSet,
+    all_inputs: List[jnp.ndarray],
     mergedtype: InputMergedBy,
     true_label: int,
     epsilon: float,
@@ -55,6 +55,21 @@ def verify(
 
     Support: MIP (SCIP, Gurobi), CROWN
     """
+    # *  ************************  * #
+    # *  step 4. define abstract domain, 𝒜 for each cluster.
+    # *  ************************  * #
+    # * merge abstract domain if possible
+    # * update networks by new vnnlib
+    vnnlib_filename: str = merge_inputs(
+        all_inputs=all_inputs,
+        removed_inputs=Results.get_unsatisfiable_inputs(label=true_label),
+        num_input_dimensions=dataset.num_pixels,
+        num_output_dimension=dataset.num_labels,
+        true_label=true_label,
+        epsilon=epsilon,
+        mergedtype=mergedtype,
+    )
+
     result: str = "UNSAT"
     networks: NetworksStructure = extract_network_structure(
         onnx_file_path=onnx_filename, vnnlib_file_path=vnnlib_filename
@@ -64,9 +79,7 @@ def verify(
     if solver is VerificationSolver.SCIP or solver is VerificationSolver.GUROBI:
         Logger.info(messages=f"Verification Algorithm is MIP solver ({solver})")
 
-        m: SCIPModel | GurobiModel = mip_verifier(
-            solver_name=solver, networks=networks
-        )
+        m: SCIPModel | GurobiModel = mip_verifier(solver_name=solver, networks=networks)
         result = "UNSAT" if m.get_solution_status() == "Infeasible" else "SAT"
     elif solver is VerificationSolver.CROWN:
         Logger.info(messages="Verification Algorithm is CROWN")
@@ -79,14 +92,14 @@ def verify(
         Logger.info(messages="New template generated!")
         return "UNSAT"
     else:
-        # * Testing checker for counter-example found by MIP
+        # * Testing checker for counter-example found by verifier
         counter_example: List[float] = get_ce(
             solver=solver, networks=networks, filename="./test_cex.txt", m=m
         )
         counter_example: jnp.ndarray = jnp.array(counter_example)
 
         ce_checker: Checker = Checker(
-            all_images=all_images,
+            all_images=all_inputs,
             counter_example=counter_example,
             epsilon=epsilon,
         )
@@ -98,44 +111,44 @@ def verify(
 
         if res_ce_check is False:
             Logger.error(messages="Counter example is not correct")
-            # TODO: divide and conquer
-            # TODO: tree based search...
-            # ? How to divide the input domain?
-            # ? What is the goal?
-            # ? What is the termination condition?
+            # ? How to divide the input domain? -> binary search
+            # ? What is the goal? -> generate template for reusing in testing dataset
+            # ? What is the termination condition? -> generate template or valid counter example
 
-            if len(all_images) == 1:
+            if len(all_inputs) == 1:
                 Logger.error(messages="IMPOSSIBLE")
                 return "IMPOSSIBLE"
-            
-            # * binary search 
-            left: List[jnp.ndarray] = all_images[:len(all_images) // 2]
-            right: List[jnp.ndarray] = all_images[len(all_images) // 2:]
-            verify(solver=solver, 
-                    onnx_filename=onnx_filename, 
-                    vnnlib_filename=vnnlib_filename, 
-                    all_images=left, 
-                    mergedtype=mergedtype, 
-                    true_label=true_label, 
-                    epsilon=epsilon)
-            verify(solver=solver, 
-                    onnx_filename=onnx_filename, 
-                    vnnlib_filename=vnnlib_filename, 
-                    all_images=right, 
-                    mergedtype=mergedtype, 
-                    true_label=true_label, 
-                    epsilon=epsilon)
-        else:
-            Logger.info(
-                messages="Counter example from MIP is a real counter example"
+
+            # * binary search
+            left: List[jnp.ndarray] = all_inputs[: len(all_inputs) // 2]
+            right: List[jnp.ndarray] = all_inputs[len(all_inputs) // 2 :]
+            verify(
+                solver=solver,
+                onnx_filename=onnx_filename,
+                dataset=dataset,
+                all_inputs=left,
+                mergedtype=mergedtype,
+                true_label=true_label,
+                epsilon=epsilon,
             )
+            verify(
+                solver=solver,
+                onnx_filename=onnx_filename,
+                dataset=dataset,
+                all_inputs=right,
+                mergedtype=mergedtype,
+                true_label=true_label,
+                epsilon=epsilon,
+            )
+        else:
+            Logger.info(messages="Counter example from MIP is a real counter example")
             assert ce_id != -1
 
             Results.add(ce=counter_example, ce_id=ce_id, label=true_label)
 
             # * updating input domain
             vnnlib_filename: str = merge_inputs(
-                all_inputs=all_images,
+                all_inputs=all_inputs,
                 removed_inputs=Results.get_unsatisfiable_inputs(label=true_label),
                 num_input_dimensions=networks.num_inputs,
                 num_output_dimension=networks.num_outputs,
@@ -143,18 +156,20 @@ def verify(
                 epsilon=epsilon,
                 mergedtype=mergedtype,
             )
-            all_images.remove(ce_id)
+            all_inputs.remove(ce_id)
             Logger.info(messages="updated the input domain")
             Logger.debugging(
                 messages=f"removed: {Results.get_unsatisfiable_inputs(label=true_label)}"
             )
-            verify(solver=solver,
-                   onnx_filename=onnx_filename,
-                   vnnlib_filename=vnnlib_filename,
-                   all_images=all_images,
-                   mergedtype=mergedtype,
-                   true_label=true_label,
-                   epsilon=epsilon)
+            verify(
+                solver=solver,
+                onnx_filename=onnx_filename,
+                vnnlib_filename=vnnlib_filename,
+                all_images=all_inputs,
+                mergedtype=mergedtype,
+                true_label=true_label,
+                epsilon=epsilon,
+            )
 
     Logger.info(messages=f"verification result: {result}")
 
@@ -287,12 +302,13 @@ def debug(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     )  # ! out of memory
 
     # * find the similar data
-    similarity_data: List[int] = Similarity.greedy(
-        distance_matrix=distance_matrix, num_clusters=2
-    )
+    similarity_data: List[int] = Similarity.greedy(distance_matrix=distance_matrix)
     Logger.debugging(messages=f"similarity_data: {similarity_data}")
 
     # TODO: Test merge abstract domain if possible
+    # *  ************************  * #
+    # *  step 4. define abstract domain, 𝒜 for each cluster.
+    # *  ************************  * #
     test_set_inputs: List[int] = similarity_data
     # test_set_inputs: List[int] = [similarity_data[0], similarity_data[1], similarity_data[2], similarity_data[3]]
     # test_set_inputs: List[int] = [similarity_data[3], similarity_data[len(similarity_data) - 1]]
@@ -342,6 +358,13 @@ def debug(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
             onnx_filename, vnnlib_filename
         )
 
+    # *  ************************  * #
+    # *  step 5. Verify 𝒜 -> r.
+    # *     if r is UNSAT: STOP
+    # *     else:
+    # *         divide 𝒜 into 𝒜_1, 𝒜_2,..., 𝒜_n
+    # *         back to step 5 to verify each 𝒜_i
+    # *  ************************  * #
     Logger.info(messages="start verifying ...")
     result: str = verify(
         solver=solver,
@@ -373,22 +396,6 @@ def debug(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     # plt.imshow(counter_example_image, cmap='gray')
     # plt.show()
 
-    # TODO: implement cluster analysis
-
-    # *  ************************  * #
-    # *  step 4. define abstract domain, 𝒜 for each cluster.
-    # *  ************************  * #
-    # TODO: implement abstract domain transformer for interval, zonotope.
-
-    # *  ************************  * #
-    # *  step 5. Verify 𝒜 -> r.
-    # *     if r is UNSAT: STOP
-    # *     else:
-    # *         divide 𝒜 into 𝒜_1, 𝒜_2,..., 𝒜_n
-    # *         back to step 5 to verify each 𝒜_i
-    # *  ************************  * #
-    # TODO: implement verification algorithm
-
     return result
 
 
@@ -399,7 +406,7 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
 
         step 1: filter correct classification results from testing dataset.
         step 2: based on each label, separate into different groups.
-        step 3: cluster analysis
+        step 3: similarity analysis
                 - goal: group similar data.
                         based on pre-defined metric.
         step 4: define abstract domain, 𝒜 for each cluster.
@@ -413,6 +420,11 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
         1. Reduce training data to train robust NN.
         2. Accelerate overall verification process.
         3. When we retrain NN, we have to verify the property again, so this might help to reduce the cost.
+
+    Logger:
+        debugging: # * for show the intermediate results.
+        info: # * for show the main results.
+        error: # * for show the error messages.
     """
     # *  ************************  * #
     # *  step 0. read the input files
@@ -499,10 +511,9 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     # *  ************************  * #
     # *  step 3. similarity analysis
     # *  ************************  * #
-    vnnlib_filename: str = ""
     test_true_label: int = 0  # YES: 0,    Y3(1)
     epsilon: float = 0.03
-    count: int = 0
+    num_images: int = 2
     distance_matrix: jnp.ndarray
     Logger.debugging(
         messages=f"number of testing images: {len(distribution_filtered_test_labels[test_true_label])}"
@@ -514,28 +525,27 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     )
 
     # * find the similar data
-    similarity_data: List[int] = Similarity.greedy(
-        distance_matrix=distance_matrix, num_clusters=2
-    )
+    similarity_data: List[int] = Similarity.greedy(distance_matrix=distance_matrix)
+    all_inputs: List[jnp.ndarray] = []
+    for id, value in enumerate(similarity_data):
+        if id < num_images:
+            all_inputs.append(distribution_filtered_test_labels[test_true_label][value])
+        else:
+            break
 
-    # * merge abstract domain if possible
-    # * update networks by new vnnlib
-    vnnlib_filename: str = merge_inputs(
-        all_inputs=distribution_filtered_test_labels[test_true_label],
-        removed_inputs=[],
-        num_input_dimensions=dataset.num_pixels,
-        num_output_dimension=dataset.num_labels,
-        true_label=test_true_label,
-        epsilon=epsilon,
-        mergedtype=mergedtype,
-    )
-
+    # *  ************************  * #
+    # *  step 5. Verify 𝒜 -> r.
+    # *     if r is UNSAT: STOP
+    # *     else:
+    # *         divide 𝒜 into 𝒜_1, 𝒜_2,..., 𝒜_n
+    # *         back to step 5 to verify each 𝒜_i
+    # *  ************************  * #
     Logger.info(messages="start verifying ...")
     result: str = verify(
         solver=solver,
         onnx_filename=onnx_filename,
-        vnnlib_filename=vnnlib_filename,
-        all_images=distribution_filtered_test_labels[test_true_label],
+        dataset=dataset,
+        all_inputs=all_inputs,
         mergedtype=mergedtype,
         true_label=test_true_label,
         epsilon=epsilon,
@@ -560,22 +570,6 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     # counter_example_image = np.array(counter_example).reshape(28, 28)
     # plt.imshow(counter_example_image, cmap='gray')
     # plt.show()
-
-    # TODO: implement cluster analysis
-
-    # *  ************************  * #
-    # *  step 4. define abstract domain, 𝒜 for each cluster.
-    # *  ************************  * #
-    # TODO: implement abstract domain transformer for interval, zonotope.
-
-    # *  ************************  * #
-    # *  step 5. Verify 𝒜 -> r.
-    # *     if r is UNSAT: STOP
-    # *     else:
-    # *         divide 𝒜 into 𝒜_1, 𝒜_2,..., 𝒜_n
-    # *         back to step 5 to verify each 𝒜_i
-    # *  ************************  * #
-    # TODO: implement verification algorithm
 
     return result
 

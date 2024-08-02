@@ -49,9 +49,9 @@ class Similarity:
     #     return distance_matrix
 
     @staticmethod
-    def generate_distance_matrix(all_data: List[jnp.ndarray], distance_type: str = "l1", chunk_size: int = 100) -> jnp.ndarray:
-
-        # TODO: add more distance types.
+    def generate_distance_matrix(
+        all_data: List[jnp.ndarray], distance_type: str = "l1", chunk_size: int = 100
+    ) -> jnp.ndarray:
         @jit
         def compute_l0_distance(difference: jnp.ndarray) -> jnp.ndarray:
             return jnp.count_nonzero(difference, axis=-1)
@@ -74,11 +74,12 @@ class Similarity:
 
         for i in range(0, num_data, chunk_size):
             for j in range(0, num_data, chunk_size):
-                chunk_dataA: jnp.ndarray = all_data[i: i + chunk_size]
-                chunk_dataB: jnp.ndarray = all_data[j: j + chunk_size]
+                chunk_dataA: jnp.ndarray = all_data[i : i + chunk_size]
+                chunk_dataB: jnp.ndarray = all_data[j : j + chunk_size]
 
-                differences: jnp.ndarray = chunk_dataA[:,
-                                                       None, :] - chunk_dataB[None, :, :]
+                differences: jnp.ndarray = (
+                    chunk_dataA[:, None, :] - chunk_dataB[None, :, :]
+                )
 
                 if distance_type == "l1":
                     distance: jnp.ndarray = compute_l1_distance(differences)
@@ -89,22 +90,23 @@ class Similarity:
                 else:
                     raise ValueError("distance type is not supported")
 
-                distance_matrix[i:i+chunk_size, j:j +
-                                chunk_size] = np.array(distance)
+                distance_matrix[i : i + chunk_size, j : j + chunk_size] = np.array(
+                    distance
+                )
         np.fill_diagonal(distance_matrix, 0)
 
         return jnp.array(distance_matrix)
-    
 
     @staticmethod
-    def greedy(distance_matrix: jnp.ndarray, num_clusters: int = 2) -> List[int]:
+    def greedy(distance_matrix: jnp.ndarray) -> List[int]:
         """
-        greedy algorithm to cluster data points.
+        Build the lattice for the given data points.
 
         this version:
             - find the closest two data points and merge them into one cluster.
             - default data is first one.
         """
+        # TODO: build the lattice for the given data points.
         reference_data: int = 0
         similarity_data = jnp.argsort(distance_matrix[reference_data])
 
