@@ -513,7 +513,7 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     # *  ************************  * #
     test_true_label: int = 0  # YES: 0,    Y3(1)
     epsilon: float = 0.03
-    num_images: int = 2
+    num_images: int = len(distribution_filtered_test_labels[test_true_label])
     distance_matrix: jnp.ndarray
     Logger.debugging(
         messages=f"number of testing images: {len(distribution_filtered_test_labels[test_true_label])}"
@@ -533,6 +533,8 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
         else:
             break
 
+    lex_order_result: List[int] = Similarity.lexicgraphical_order(all_data=all_inputs)
+
     # *  ************************  * #
     # *  step 5. Verify 𝒜 -> r.
     # *     if r is UNSAT: STOP
@@ -541,15 +543,15 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     # *         back to step 5 to verify each 𝒜_i
     # *  ************************  * #
     Logger.info(messages="start verifying ...")
-    result: str = verify(
-        solver=solver,
-        onnx_filename=onnx_filename,
-        dataset=dataset,
-        all_inputs=all_inputs,
-        mergedtype=mergedtype,
-        true_label=test_true_label,
-        epsilon=epsilon,
-    )
+    # result: str = verify(
+    #     solver=solver,
+    #     onnx_filename=onnx_filename,
+    #     dataset=dataset,
+    #     all_inputs=all_inputs,
+    #     mergedtype=mergedtype,
+    #     true_label=test_true_label,
+    #     epsilon=epsilon,
+    # )
 
     # m: SCIPModel | GurobiModel = mip_verifier(solver_name=solver, networks=networks)
     # counter_example: List[float] = []
