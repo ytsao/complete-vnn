@@ -110,8 +110,33 @@ class Similarity:
         # TODO: build the lattice for the given data points.
         reference_data: int = 0
         similarity_data = jnp.argsort(distance_matrix[reference_data])
+        Logger.debugging(f"Similarity Data: {similarity_data[1]}")
 
-        return similarity_data.tolist()
+        reference_data: int = 0
+        visited_data: List[int] = np.zeros(len(distance_matrix), dtype=bool)
+        next_data: int = np.zeros(len(distance_matrix), dtype=int)
+        while visited_data[reference_data] == False:
+            visited_data[reference_data] = True
+            minimum_distance: int = np.inf
+            minimum_index: int = -1
+            for id, value in enumerate(distance_matrix[reference_data]):
+                if visited_data[id] == False and value < minimum_distance:
+                    minimum_distance = value
+                    minimum_index = id
+            if minimum_index == -1:
+                reference_data = -1
+                for id, value in enumerate(visited_data):
+                    if value == False:
+                        reference_data = id
+                        break
+                if reference_data == -1:
+                    break
+            else:
+                next_data[reference_data] = minimum_index
+                reference_data = minimum_index
+
+
+        return next_data
 
     @staticmethod
     def lexicgraphical_order(all_data: List[jnp.ndarray]) -> List[int]:
@@ -121,12 +146,6 @@ class Similarity:
 
         Suppose:
             data is a square matrix.
-
-        [Lattice Structure]:
-        TOP:
-            all pixels are "1"
-        BOTTOM:
-            all pixels are "0"
         """
 
         def bubble_sort(lex_order_result: List[int]) -> List[int]:

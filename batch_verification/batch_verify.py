@@ -1,5 +1,6 @@
 from collections import defaultdict
 from typing import List, Dict
+import time
 import os
 
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
@@ -91,9 +92,10 @@ def verify(
         )
 
     if result == "UNSAT":
-        Logger.info(messages="New template generated!")
+        Logger.info(messages="UNSAT, New template generated!")
         return "UNSAT"
     else:
+        Logger.info(messages="SAT")
         # * Testing checker for counter-example found by verifier
         counter_example: List[float] = get_ce(
             solver=solver, networks=networks, filename="./test_cex.txt", m=m
@@ -176,8 +178,6 @@ def verify(
                 true_label=true_label,
                 epsilon=epsilon,
             )
-
-    Logger.info(messages=f"verification result: {result}")
 
     return result
 
@@ -517,10 +517,10 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     # *  ************************  * #
     # *  step 3. similarity analysis
     # *  ************************  * #
-    test_true_label: int = 0  # YES: 0,    Y3(1)
+    test_true_label: int = 1  # YES: 0,    Y3(1)
     epsilon: float = 0.03
     # num_images: int = len(distribution_filtered_test_labels[test_true_label])
-    num_images: int = 50  # testing small sized instance
+    num_images: int = 10  # testing small sized instance
     distance_matrix: jnp.ndarray
     Logger.debugging(
         messages=f"number of testing images: {len(distribution_filtered_test_labels[test_true_label])}"
@@ -534,14 +534,20 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     # * find the similar data
     similarity_data: List[int] = Similarity.greedy(distance_matrix=distance_matrix)
     all_inputs: List[jnp.ndarray] = []
-    for id, value in enumerate(similarity_data):
-        if id < num_images:
-            all_inputs.append(distribution_filtered_test_labels[test_true_label][value])
-        else:
-            break
+    # for id, value in enumerate(similarity_data):
+    #     if id < num_images:
+    #         all_inputs.append(distribution_filtered_test_labels[test_true_label][value])
+    #         Logger.debugging(f"similarity_data: {value}")
+    #     else:
+    #         break
+    next_data: int = 0
+    while len(all_inputs) < num_images:
+        Logger.debugging(f"similarity_data: {next_data}")
+        all_inputs.append(distribution_filtered_test_labels[test_true_label][next_data])
+        next_data = similarity_data[next_data]
 
-    lex_order_result: List[int] = Similarity.lexicgraphical_order(all_data=all_inputs)
-    all_inputs = [all_inputs[i] for i in lex_order_result]
+    # lex_order_result: List[int] = Similarity.lexicgraphical_order(all_data=all_inputs)
+    # all_inputs = [all_inputs[i] for i in lex_order_result]
 
     # *  ************************  * #
     # *  step 5. Verify 𝒜 -> r.
@@ -551,6 +557,8 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     # *         back to step 5 to verify each 𝒜_i
     # *  ************************  * #
     Logger.info(messages="start verifying ...")
+
+    start_time = time.time()
     result: str = verify(
         solver=solver,
         onnx_filename=onnx_filename,
@@ -560,7 +568,26 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
         true_label=test_true_label,
         epsilon=epsilon,
     )
+    end_time = time.time()
+    Logger.info(messages=f"elapsed time for batch verification is : {end_time - start_time}")
     Logger.info(messages=f"number of iterations: {COUNT}")
+
+    # * individual verification
+    # start_time = time.time()
+    # for each_input in all_inputs:
+    #     data: List[jnp.ndarray] = [(each_input)]
+    #     verify(
+    #         solver=solver,
+    #         onnx_filename=onnx_filename,
+    #         dataset=dataset,
+    #         all_inputs=data,
+    #         mergedtype=mergedtype,
+    #         true_label=test_true_label,
+    #         epsilon=epsilon,
+    #     )
+    # end_time = time.time()
+    # Logger.info(messages=f"elapsed time for normal verification is : {end_time - start_time}")
+
 
     # m: SCIPModel | GurobiModel = mip_verifier(solver_name=solver, networks=networks)
     # counter_example: List[float] = []
@@ -619,3 +646,5 @@ if __name__ == "__main__":
     mergedtype: InputMergedBy = InputMergedBy(args.mergedtype)
 
     main(mode=mode, solver=solver, mergedtype=mergedtype)
+
+    Logger.info(messages="batch verification is finished!")

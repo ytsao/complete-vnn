@@ -18,6 +18,8 @@ class Checker:
         ce_id: int = -1
         result: bool = False
 
+        # TODO: There is a bug that will lead lb >= ub.
+        # TODO: double check this code.
         for id, each_image in enumerate(self.all_images):
             if jnp.all(jnp.abs(each_image - self.ce) <= self.epsilon):
                 result = True
