@@ -38,6 +38,7 @@ from util.log import Logger
 
 
 # * algorithms
+COUNT: int = 0
 
 
 # TODO: implement verification algorithm in different ways
@@ -62,7 +63,6 @@ def verify(
     # * update networks by new vnnlib
     vnnlib_filename: str = merge_inputs(
         all_inputs=all_inputs,
-        removed_inputs=Results.get_unsatisfiable_inputs(label=true_label),
         num_input_dimensions=dataset.num_pixels,
         num_output_dimension=dataset.num_labels,
         true_label=true_label,
@@ -70,6 +70,8 @@ def verify(
         mergedtype=mergedtype,
     )
 
+    global COUNT
+    COUNT += 1
     result: str = "UNSAT"
     networks: NetworksStructure = extract_network_structure(
         onnx_file_path=onnx_filename, vnnlib_file_path=vnnlib_filename
@@ -115,6 +117,10 @@ def verify(
             # ? What is the goal? -> generate template for reusing in testing dataset
             # ? What is the termination condition? -> generate template or valid counter example
 
+            # * remove vnnlib file, since it is not correct
+            Logger.debugging(messages=f"remove the vnnlib file: {vnnlib_filename}")
+            os.remove(vnnlib_filename)
+
             if len(all_inputs) == 1:
                 Logger.error(messages="IMPOSSIBLE")
                 return "IMPOSSIBLE"
@@ -145,11 +151,11 @@ def verify(
             assert ce_id != -1
 
             Results.add(ce=counter_example, ce_id=ce_id, label=true_label)
+            all_inputs.remove(ce_id)
 
             # * updating input domain
             vnnlib_filename: str = merge_inputs(
                 all_inputs=all_inputs,
-                removed_inputs=Results.get_unsatisfiable_inputs(label=true_label),
                 num_input_dimensions=networks.num_inputs,
                 num_output_dimension=networks.num_outputs,
                 true_label=true_label,
@@ -513,7 +519,8 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     # *  ************************  * #
     test_true_label: int = 0  # YES: 0,    Y3(1)
     epsilon: float = 0.03
-    num_images: int = len(distribution_filtered_test_labels[test_true_label])
+    # num_images: int = len(distribution_filtered_test_labels[test_true_label])
+    num_images: int = 50  # testing small sized instance
     distance_matrix: jnp.ndarray
     Logger.debugging(
         messages=f"number of testing images: {len(distribution_filtered_test_labels[test_true_label])}"
@@ -534,6 +541,7 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
             break
 
     lex_order_result: List[int] = Similarity.lexicgraphical_order(all_data=all_inputs)
+    all_inputs = [all_inputs[i] for i in lex_order_result]
 
     # *  ************************  * #
     # *  step 5. Verify 𝒜 -> r.
@@ -543,15 +551,16 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     # *         back to step 5 to verify each 𝒜_i
     # *  ************************  * #
     Logger.info(messages="start verifying ...")
-    # result: str = verify(
-    #     solver=solver,
-    #     onnx_filename=onnx_filename,
-    #     dataset=dataset,
-    #     all_inputs=all_inputs,
-    #     mergedtype=mergedtype,
-    #     true_label=test_true_label,
-    #     epsilon=epsilon,
-    # )
+    result: str = verify(
+        solver=solver,
+        onnx_filename=onnx_filename,
+        dataset=dataset,
+        all_inputs=all_inputs,
+        mergedtype=mergedtype,
+        true_label=test_true_label,
+        epsilon=epsilon,
+    )
+    Logger.info(messages=f"number of iterations: {COUNT}")
 
     # m: SCIPModel | GurobiModel = mip_verifier(solver_name=solver, networks=networks)
     # counter_example: List[float] = []

@@ -20,3 +20,9 @@ class Results:
         if label not in Results.unsatisfiable_inputs:
             return []
         return Results.unsatisfiable_inputs[label]
+
+
+
+    @staticmethod
+    def record_experiments():
+        return

@@ -36,7 +36,6 @@ def _meet(
 
 def _join(
     all_inputs: List[jnp.ndarray],
-    removed_inputs: List[int] = [],
     num_dimensions: int = -1,
     epsilon: float = 0.01,
 ) -> Tuple[List[float], List[float]]:
@@ -44,9 +43,6 @@ def _join(
     each_pixel_ub: List[float] = [-99999 for _ in range(num_dimensions)]
 
     for id, each_input in enumerate(all_inputs):
-        if id in removed_inputs:
-            continue
-
         each_pixel_lb = [
             max(0, min(each_pixel_lb[i], each_input[i] - epsilon))
             for i in range(num_dimensions)
@@ -64,7 +60,6 @@ def _join(
 
 def merge_inputs(
     all_inputs: List[jnp.ndarray],
-    removed_inputs: List[int] = [],
     num_input_dimensions: int = 1,
     num_output_dimension: int = 1,
     true_label: int = 0,
@@ -72,15 +67,14 @@ def merge_inputs(
     mergedtype: InputMergedBy = InputMergedBy.JOIN,
 ) -> str:
     if mergedtype == InputMergedBy.JOIN:
-        each_pixel_lb, each_pixel_ub = _join(
-            all_inputs, removed_inputs, num_input_dimensions, epsilon
-        )
+        each_pixel_lb, each_pixel_ub = _join(all_inputs, num_input_dimensions, epsilon)
     elif mergedtype == InputMergedBy.MEET:
         each_pixel_lb, each_pixel_ub = _meet(all_inputs, num_input_dimensions, epsilon)
 
     vnnlib_filename: str = export_vnnlib(
         lb=each_pixel_lb,
         ub=each_pixel_ub,
+        num_data=len(all_inputs),
         num_classes=num_output_dimension,
         true_label=true_label,
         epsilon=epsilon,

@@ -48,14 +48,19 @@ def write_vnnlib(
 
 
 def export_vnnlib(
-    lb: List[float], ub: List[float], num_classes: int, true_label: int, epsilon: float
+    lb: List[float],
+    ub: List[float],
+    num_data: int,
+    num_classes: int,
+    true_label: int,
+    epsilon: float,
 ) -> str:
     """
     write the data to vnnlib file.
 
     support dataset: MNIST
     """
-    filename: str = f"infinity_all_{true_label}_{epsilon}.vnnlib"
+    filename: str = f"infinity_all_{true_label}_{epsilon}_num{num_data}.vnnlib"
     directory: str = "./util/benchmarks/vnnlib/"
     file_path: str = os.path.join(directory, filename)
 

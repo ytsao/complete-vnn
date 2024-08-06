@@ -130,22 +130,24 @@ class Similarity:
         """
 
         def bubble_sort(lex_order_result: List[int]) -> List[int]:
+            num_dims: int = len(all_data[0])
             for i in range(len(all_data)):
                 for j in range(i + 1, len(all_data)):
-                    for k in range(len(all_data[i])):
+                    for k in range(num_dims):
                         if all_data[i][k] == all_data[j][k]:
                             continue
                         elif all_data[i][k] > all_data[j][k]:
+                            all_data[i], all_data[j] = all_data[j], all_data[i]
                             lex_order_result[i], lex_order_result[j] = (
                                 lex_order_result[j],
                                 lex_order_result[i],
                             )
+                            break
+                        else:
+                            break
             return lex_order_result
 
-        def quick_sort(lex_order_result: List[int]) -> List[int]:
-            return lex_order_result
-
-        def heapify(arr: List[int], n: int, i: int):
+        def heapify(lex_order_result: List[int], n: int, i: int):
             largest: int = i
             l: int = 2 * i + 1
             r: int = 2 * i + 2
@@ -156,6 +158,7 @@ class Similarity:
                         continue
                     elif all_data[largest][k] < all_data[l][k]:
                         largest = l
+                        break
                     else:
                         break
             if r < n:
@@ -164,12 +167,17 @@ class Similarity:
                         continue
                     elif all_data[largest][k] < all_data[r][k]:
                         largest = r
+                        break
                     else:
                         break
             if largest != i:
                 all_data[i], all_data[largest] = all_data[largest], all_data[i]
-                arr[i], arr[largest] = arr[largest], arr[i]
-                heapify(arr, n, largest)
+                lex_order_result[i], lex_order_result[largest] = (
+                    lex_order_result[largest],
+                    lex_order_result[i],
+                )
+                heapify(lex_order_result, n, largest)
+
             return
 
         def heap_sort(lex_order_result: List[int]) -> List[int]:
@@ -177,19 +185,26 @@ class Similarity:
             for i in range(n // 2 - 1, -1, -1):
                 heapify(lex_order_result, n, i)
             for i in range(n - 1, 0, -1):
+                all_data[i], all_data[0] = all_data[0], all_data[i]
                 lex_order_result[i], lex_order_result[0] = (
                     lex_order_result[0],
                     lex_order_result[i],
                 )
-                all_data[i], all_data[0] = all_data[0], all_data[i]
                 heapify(lex_order_result, i, 0)
+
             return lex_order_result
 
-        # lex_order_result: List[int] = bubble_sort(list(range(len(all_data))))
-        # lex_order_result: List[int] = quick_sort(list(range(len(all_data))))
-        lex_order_result: List[int] = heap_sort(list(range(len(all_data))))
+        # for a, b, c, d in zip(all_data[0], all_data[1], all_data[2], all_data[3]):
+        #     if a == 0 and b == 0 and c == 0 and d == 0:
+        #         continue
+        #     Logger.debugging(f"Data1: {a}, \t Data2: {b}, \t Data3: {c}, \t Data4: {d}")
+
+        lex_order_result: List[int] = bubble_sort(list(range(len(all_data))))
+        lex_order_result2: List[int] = heap_sort(lex_order_result)
+
+        for a, b in zip(lex_order_result, lex_order_result2):
+            assert a == b, "Lexicographical order is wrong"
 
         assert len(all_data) == len(lex_order_result), "Lexicographical order is wrong"
-        Logger.debugging(f"Lexicographical order: {lex_order_result}")
 
         return lex_order_result
