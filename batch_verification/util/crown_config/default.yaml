@@ -5,7 +5,7 @@ general:
   eval_adv_example: false  # Whether to validate the saved adversarial example.
   show_adv_example: false  # Print the adversarial example.
   precompile_jit: false  # Precompile jit kernels to speed up after jit-wrapped functions, but will cost extra time at the beginning.
-  complete_verifier: mip  # Complete verification verifier. "bab": branch and bound with beta-CROWN or GCP-CROWN; "mip": mixed integer programming (MIP) formulation; "bab-refine": branch and bound with intermediate layer bounds computed by MIP; "Customized": customized verifier, need to specially def by user.
+  complete_verifier: bab  # Complete verification verifier. "bab": branch and bound with beta-CROWN or GCP-CROWN; "mip": mixed integer programming (MIP) formulation; "bab-refine": branch and bound with intermediate layer bounds computed by MIP; "Customized": customized verifier, need to specially def by user.
   enable_incomplete_verification: true  # Enable/Disable initial alpha-CROWN incomplete verification (disable this can save GPU memory).
   csv_name: null  # Name of .csv file containing a list of properties to verify (VNN-COMP specific).
   results_file: out.txt  # Path to results file.
@@ -107,7 +107,7 @@ solver:
     adv_warmup: true  # Disable using PGD adv as MIP refinement warmup starts.
     mip_solver: gurobi  # MLP/LP solver package (SCIP support is experimental).
 bab:
-  initial_max_domains: 1  # Number of domains we can add to domain list at the same time before bab. For multi-class problems this can be as large as the number of labels.
+  initial_max_domains: 10  # Number of domains we can add to domain list at the same time before bab. For multi-class problems this can be as large as the number of labels.
   max_domains: .inf  # Max number of subproblems in branch and bound.
   decision_thresh: 0  # Decision threshold of lower bounds. When lower bounds are greater than this value, verification is successful. Set to 0 for robustness verification.
   timeout: 360  # Timeout (in second) for verifying one image/property.
@@ -190,7 +190,7 @@ bab:
       sort_descending: true  # Sort input split domains in an ascending/descending way.
       show_progress: false  # Show progress during input split.
   attack:
-    enabled: true  # Enable beam search based BaB-attack.
+    enabled: false  # Enable beam search based BaB-attack.
     beam_candidates: 8  # Number of candidates in beam search.
     beam_depth: 7  # Max additional level of splits to expand during beam search in BaB-Attack.
     max_dive_fix_ratio: 0.8  # Maximum ratio of fixed neurons during diving in BaB-Attack.

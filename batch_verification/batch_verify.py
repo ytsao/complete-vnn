@@ -103,7 +103,7 @@ def verify(
         counter_example: jnp.ndarray = jnp.array(counter_example)
 
         ce_checker: Checker = Checker(
-            all_images=all_inputs,
+            all_inputs=all_inputs,
             counter_example=counter_example,
             epsilon=epsilon,
         )
@@ -113,19 +113,20 @@ def verify(
         ce_id, res_ce_check = ce_checker.check()
         Logger.debugging(messages=f"counter example check: {res_ce_check}")
 
-        if res_ce_check is False:
+        if res_ce_check == False:
             Logger.error(messages="Counter example is not correct")
+            assert ce_id == -1
             # ? How to divide the input domain? -> binary search
             # ? What is the goal? -> generate template for reusing in testing dataset
             # ? What is the termination condition? -> generate template or valid counter example
 
-            # * remove vnnlib file, since it is not correct
-            Logger.debugging(messages=f"remove the vnnlib file: {vnnlib_filename}")
-            os.remove(vnnlib_filename)
-
             if len(all_inputs) == 1:
                 Logger.error(messages="IMPOSSIBLE")
                 return "IMPOSSIBLE"
+
+            # * remove vnnlib file, since it is not correct
+            Logger.debugging(messages=f"remove the vnnlib file: {vnnlib_filename}")
+            os.remove(vnnlib_filename)
 
             # * binary search
             left: List[jnp.ndarray] = all_inputs[: len(all_inputs) // 2]
@@ -153,6 +154,7 @@ def verify(
             assert ce_id != -1
 
             Results.add(ce=counter_example, ce_id=ce_id, label=true_label)
+            Logger.debugging(f"ce_id:{ce_id}")
             all_inputs.remove(ce_id)
 
             # * updating input domain
@@ -169,6 +171,9 @@ def verify(
             Logger.debugging(
                 messages=f"removed: {Results.get_unsatisfiable_inputs(label=true_label)}"
             )
+            if len(all_inputs) == 0:
+                return "SAT"
+
             verify(
                 solver=solver,
                 onnx_filename=onnx_filename,
@@ -519,15 +524,16 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     # *  ************************  * #
     test_true_label: int = 1  # YES: 0,    Y3(1)
     epsilon: float = 0.03
-    # num_images: int = len(distribution_filtered_test_labels[test_true_label])
-    num_images: int = 10  # testing small sized instance
+    distance_type: str = "l2"  # l1, l2, linf
+    num_images: int = len(distribution_filtered_test_labels[test_true_label])
+    # num_images: int = 10  # testing small sized instance
     distance_matrix: jnp.ndarray
     Logger.debugging(
         messages=f"number of testing images: {len(distribution_filtered_test_labels[test_true_label])}"
     )
     distance_matrix = Similarity.generate_distance_matrix(
         all_data=distribution_filtered_test_labels[test_true_label],
-        distance_type="l2",
+        distance_type=distance_type,
         chunk_size=100,
     )
 
@@ -546,6 +552,7 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
         all_inputs.append(distribution_filtered_test_labels[test_true_label][next_data])
         next_data = similarity_data[next_data]
 
+    # * sort the input data by lexicographical order
     # lex_order_result: List[int] = Similarity.lexicgraphical_order(all_data=all_inputs)
     # all_inputs = [all_inputs[i] for i in lex_order_result]
 
@@ -557,7 +564,6 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     # *         back to step 5 to verify each 𝒜_i
     # *  ************************  * #
     Logger.info(messages="start verifying ...")
-
     start_time = time.time()
     result: str = verify(
         solver=solver,
@@ -569,7 +575,9 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
         epsilon=epsilon,
     )
     end_time = time.time()
-    Logger.info(messages=f"elapsed time for batch verification is : {end_time - start_time}")
+    Logger.info(
+        messages=f"elapsed time for batch verification is : {end_time - start_time}"
+    )
     Logger.info(messages=f"number of iterations: {COUNT}")
 
     # * individual verification
@@ -586,28 +594,21 @@ def release(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     #         epsilon=epsilon,
     #     )
     # end_time = time.time()
-    # Logger.info(messages=f"elapsed time for normal verification is : {end_time - start_time}")
+    # Logger.info(
+    #     messages=f"elapsed time for normal verification is : {end_time - start_time}"
+    # )
+    # Logger.info(messages=f"number of iterations: {COUNT}")
 
-
-    # m: SCIPModel | GurobiModel = mip_verifier(solver_name=solver, networks=networks)
-    # counter_example: List[float] = []
-    # if m.get_solution_status() == "Infeasible":
-    #     Logger.info(messages="UNSAT")
-    # else:
-    #     for k, Nk in enumerate(networks.layer_to_layer):
-    #         if k == 0:
-    #             for nk in range(Nk[0]):
-    #                 name: str = f"x_{k}_{nk}"
-    #                 variable = m.solver.continue_variables[name]
-    #                 counter_example.append(m.get_primal_solution(variable))
-    #         else:
-    #             break
-    #     Logger.info(messages="SAT")
-
-    # # plt.imshow(distribution_filtered_test_labels[test_true_label][id].reshape(28, 28), cmap='gray')
-    # counter_example_image = np.array(counter_example).reshape(28, 28)
-    # plt.imshow(counter_example_image, cmap='gray')
-    # plt.show()
+    # * save the experiment result to csv file
+    Results.record_experiments(
+        robustness_type="Lp",
+        dataset="mnist",
+        num_data=num_images,
+        distance="l2",
+        time=str(end_time - start_time),
+        num_iterations=COUNT,
+        epsilon=epsilon,
+    )
 
     return result
 

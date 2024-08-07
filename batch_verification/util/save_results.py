@@ -1,6 +1,7 @@
 from typing import Dict, List
 
 import jax.numpy as jnp
+import pandas as pd
 
 
 class Results:
@@ -21,8 +22,39 @@ class Results:
             return []
         return Results.unsatisfiable_inputs[label]
 
-
-
     @staticmethod
-    def record_experiments():
+    def record_experiments(
+        robustness_type: str,
+        dataset: str,
+        num_data: int,
+        distance: str,
+        time: str,
+        num_iterations: int,
+        epsilon: float = 0.01,
+        degree: float = 5,
+        brightness: float = 0.05,
+    ):
+        df = pd.DataFrame()
+        df["Robustness Type"] = [robustness_type]
+        df["Dataset"] = [dataset]
+        df["Num Data"] = [num_data]
+        df["Distance"] = [distance]
+        df["Time"] = [time]
+        df["Num Iterations"] = [num_iterations]
+
+        if robustness_type == "Lp":
+            df["Epsilon"] = [epsilon]
+            df["Degree"] = ["-"]
+            df["Brightness"] = ["-"]
+        elif robustness_type == "Rotation":
+            df["Epsilon"] = ["-"]
+            df["Degree"] = [degree]
+            df["Brightness"] = ["-"]
+        elif robustness_type == "Brightness":
+            df["Epsilon"] = ["-"]
+            df["Degree"] = ["-"]
+            df["Brightness"] = [brightness]
+
+        df.to_csv("./results.csv", mode="a", header=False, index=False)
+
         return
