@@ -27,6 +27,10 @@ class NetworksStructure:
 
 @dataclass
 class DataSet:
+    # onnx file
+    onnx_filename: str = field(default="")
+
+    # The information from dataset
     train_images: Array = field(init=False)
     train_labels: Array = field(init=False)
     test_images: Array = field(init=False)
@@ -36,3 +40,9 @@ class DataSet:
     num_height: int = field(init=False)
     num_weight: int = field(init=False)
     num_channel: int = field(init=False)
+
+    # The information for robustness verification
+    distance_type: str = field(default="l1")
+    epsilon: float = field(init=False)
+    rotation_degree: float = field(init=False)
+    brightness_level: float = field(init=False)

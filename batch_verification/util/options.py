@@ -12,6 +12,7 @@ class VerificationSolver(Enum):
     CROWN = "crown"
 
 
-class Mode(Enum):
-    DEBUG = "debug"
-    RELEASE = "release"
+class RobustnessType(Enum):
+    LP_NORM = "linf"
+    ROTATION = "rotation"
+    BRIGHTNESS = "brightness"

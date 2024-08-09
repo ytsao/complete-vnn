@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Any, Dict, Tuple
 from functools import partial
 
 import numpy as np
@@ -107,123 +107,127 @@ class Similarity:
             - find the closest two data points and merge them into one cluster.
             - default data is first one.
         """
-        # TODO: build the lattice for the given data points.
         reference_data: int = 0
         similarity_data = jnp.argsort(distance_matrix[reference_data])
-        Logger.debugging(f"Similarity Data: {similarity_data[1]}")
 
-        reference_data: int = 0
-        visited_data: List[int] = np.zeros(len(distance_matrix), dtype=bool)
-        next_data: int = np.zeros(len(distance_matrix), dtype=int)
-        while visited_data[reference_data] == False:
-            visited_data[reference_data] = True
-            minimum_distance: int = np.inf
-            minimum_index: int = -1
-            for id, value in enumerate(distance_matrix[reference_data]):
-                if visited_data[id] == False and value < minimum_distance:
-                    minimum_distance = value
-                    minimum_index = id
-            if minimum_index == -1:
-                reference_data = -1
-                for id, value in enumerate(visited_data):
-                    if value == False:
-                        reference_data = id
-                        break
-                if reference_data == -1:
-                    break
-            else:
-                next_data[reference_data] = minimum_index
-                reference_data = minimum_index
+        return similarity_data
 
+    # // archived code
+    # // in testing, lexicographical order is not working to measure the similarity between inputs.
+    # @staticmethod
+    # def lexicgraphical_order(all_data: List[jnp.ndarray]) -> List[int]:
+    #     """
+    #     Build the lattice for the given data points.
+    #     Sorting Algorithm: bubble sort (testing)
 
-        return next_data
+    #     Suppose:
+    #         data is a square matrix.
+    #     """
+
+    #     def bubble_sort(lex_order_result: List[int]) -> List[int]:
+    #         num_dims: int = len(all_data[0])
+    #         for i in range(len(all_data)):
+    #             for j in range(i + 1, len(all_data)):
+    #                 for k in range(num_dims):
+    #                     if all_data[i][k] == all_data[j][k]:
+    #                         continue
+    #                     elif all_data[i][k] > all_data[j][k]:
+    #                         all_data[i], all_data[j] = all_data[j], all_data[i]
+    #                         lex_order_result[i], lex_order_result[j] = (
+    #                             lex_order_result[j],
+    #                             lex_order_result[i],
+    #                         )
+    #                         break
+    #                     else:
+    #                         break
+    #         return lex_order_result
+
+    #     def heapify(lex_order_result: List[int], n: int, i: int):
+    #         largest: int = i
+    #         l: int = 2 * i + 1
+    #         r: int = 2 * i + 2
+
+    #         if l < n:
+    #             for k in range(len(all_data[i])):
+    #                 if all_data[largest][k] == all_data[l][k]:
+    #                     continue
+    #                 elif all_data[largest][k] < all_data[l][k]:
+    #                     largest = l
+    #                     break
+    #                 else:
+    #                     break
+    #         if r < n:
+    #             for k in range(len(all_data[i])):
+    #                 if all_data[largest][k] == all_data[r][k]:
+    #                     continue
+    #                 elif all_data[largest][k] < all_data[r][k]:
+    #                     largest = r
+    #                     break
+    #                 else:
+    #                     break
+    #         if largest != i:
+    #             all_data[i], all_data[largest] = all_data[largest], all_data[i]
+    #             lex_order_result[i], lex_order_result[largest] = (
+    #                 lex_order_result[largest],
+    #                 lex_order_result[i],
+    #             )
+    #             heapify(lex_order_result, n, largest)
+
+    #         return
+
+    #     def heap_sort(lex_order_result: List[int]) -> List[int]:
+    #         n: int = len(all_data)
+    #         for i in range(n // 2 - 1, -1, -1):
+    #             heapify(lex_order_result, n, i)
+    #         for i in range(n - 1, 0, -1):
+    #             all_data[i], all_data[0] = all_data[0], all_data[i]
+    #             lex_order_result[i], lex_order_result[0] = (
+    #                 lex_order_result[0],
+    #                 lex_order_result[i],
+    #             )
+    #             heapify(lex_order_result, i, 0)
+
+    #         return lex_order_result
+
+    #     # for a, b, c, d in zip(all_data[0], all_data[1], all_data[2], all_data[3]):
+    #     #     if a == 0 and b == 0 and c == 0 and d == 0:
+    #     #         continue
+    #     #     Logger.debugging(f"Data1: {a}, \t Data2: {b}, \t Data3: {c}, \t Data4: {d}")
+
+    #     lex_order_result: List[int] = bubble_sort(list(range(len(all_data))))
+    #     lex_order_result2: List[int] = heap_sort(lex_order_result)
+
+    #     for a, b in zip(lex_order_result, lex_order_result2):
+    #         assert a == b, "Lexicographical order is wrong"
+
+    #     assert len(all_data) == len(lex_order_result), "Lexicographical order is wrong"
+
+    #     return lex_order_result
 
     @staticmethod
-    def lexicgraphical_order(all_data: List[jnp.ndarray]) -> List[int]:
-        """
-        Build the lattice for the given data points.
-        Sorting Algorithm: bubble sort (testing)
+    def output_vector_similarity(
+        all_inference_result: List[Any],
+    ) -> Dict[Tuple[int], List[int]]:
+        group: Dict[Tuple[int], List[int]] = dict()
 
-        Suppose:
-            data is a square matrix.
-        """
+        for id, each_inference_result in enumerate(all_inference_result):
+            order_index: Tuple[int] = tuple(
+                jnp.argsort(each_inference_result).tolist()[0]
+            )
+            if order_index in group:
+                group[order_index].append(id)
+            else:
+                group[order_index] = [id]
 
-        def bubble_sort(lex_order_result: List[int]) -> List[int]:
-            num_dims: int = len(all_data[0])
-            for i in range(len(all_data)):
-                for j in range(i + 1, len(all_data)):
-                    for k in range(num_dims):
-                        if all_data[i][k] == all_data[j][k]:
-                            continue
-                        elif all_data[i][k] > all_data[j][k]:
-                            all_data[i], all_data[j] = all_data[j], all_data[i]
-                            lex_order_result[i], lex_order_result[j] = (
-                                lex_order_result[j],
-                                lex_order_result[i],
-                            )
-                            break
-                        else:
-                            break
-            return lex_order_result
+        # * summary
+        summary_table: Dict[int, int] = dict()
+        for key, value in group.items():
+            if len(value) in summary_table:
+                summary_table[len(value)] += 1
+            else:
+                summary_table[len(value)] = 1
 
-        def heapify(lex_order_result: List[int], n: int, i: int):
-            largest: int = i
-            l: int = 2 * i + 1
-            r: int = 2 * i + 2
+        for i in sorted(summary_table):
+            Logger.debugging(f"The group size is = {i}, value = {summary_table[i]}")
 
-            if l < n:
-                for k in range(len(all_data[i])):
-                    if all_data[largest][k] == all_data[l][k]:
-                        continue
-                    elif all_data[largest][k] < all_data[l][k]:
-                        largest = l
-                        break
-                    else:
-                        break
-            if r < n:
-                for k in range(len(all_data[i])):
-                    if all_data[largest][k] == all_data[r][k]:
-                        continue
-                    elif all_data[largest][k] < all_data[r][k]:
-                        largest = r
-                        break
-                    else:
-                        break
-            if largest != i:
-                all_data[i], all_data[largest] = all_data[largest], all_data[i]
-                lex_order_result[i], lex_order_result[largest] = (
-                    lex_order_result[largest],
-                    lex_order_result[i],
-                )
-                heapify(lex_order_result, n, largest)
-
-            return
-
-        def heap_sort(lex_order_result: List[int]) -> List[int]:
-            n: int = len(all_data)
-            for i in range(n // 2 - 1, -1, -1):
-                heapify(lex_order_result, n, i)
-            for i in range(n - 1, 0, -1):
-                all_data[i], all_data[0] = all_data[0], all_data[i]
-                lex_order_result[i], lex_order_result[0] = (
-                    lex_order_result[0],
-                    lex_order_result[i],
-                )
-                heapify(lex_order_result, i, 0)
-
-            return lex_order_result
-
-        # for a, b, c, d in zip(all_data[0], all_data[1], all_data[2], all_data[3]):
-        #     if a == 0 and b == 0 and c == 0 and d == 0:
-        #         continue
-        #     Logger.debugging(f"Data1: {a}, \t Data2: {b}, \t Data3: {c}, \t Data4: {d}")
-
-        lex_order_result: List[int] = bubble_sort(list(range(len(all_data))))
-        lex_order_result2: List[int] = heap_sort(lex_order_result)
-
-        for a, b in zip(lex_order_result, lex_order_result2):
-            assert a == b, "Lexicographical order is wrong"
-
-        assert len(all_data) == len(lex_order_result), "Lexicographical order is wrong"
-
-        return lex_order_result
+        return group
