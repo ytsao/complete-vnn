@@ -149,7 +149,9 @@ def verify(
 
             Results.add(ce=counter_example, ce_id=ce_id, label=true_label)
             Logger.debugging(f"ce_id:{ce_id}")
-            all_inputs.remove(ce_id)
+            del all_inputs[ce_id]
+            if len(all_inputs) == 0:
+                return "SAT"
 
             # * updating input domain
             vnnlib_filename: str = merge_inputs(
@@ -160,13 +162,10 @@ def verify(
                 epsilon=dataset.epsilon,
                 mergedtype=mergedtype,
             )
-            all_inputs.remove(ce_id)
             Logger.info(messages="updated the input domain")
             Logger.debugging(
-                messages=f"removed: {Results.get_unsatisfiable_inputs(label=true_label)}"
+                messages=f"have removed: {Results.get_unsatisfiable_inputs(label=true_label)}"
             )
-            if len(all_inputs) == 0:
-                return "SAT"
 
             verify(
                 solver=solver,
@@ -271,10 +270,11 @@ def _execute(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
         if inference_label == true_label:
             filterd_test_images.append(dataset.test_images[data_id])
             filterd_test_labels.append(true_label)
-        if true_label not in all_inference_result:
-            all_inference_result[true_label] = [inference_result]
-        else:
-            all_inference_result[true_label].append(inference_result)
+
+            if true_label not in all_inference_result:
+                all_inference_result[true_label] = [inference_result]
+            else:
+                all_inference_result[true_label].append(inference_result)
 
     Logger.debugging(messages=f"filterd_test_images: {len(filterd_test_images)}")
     Logger.debugging(messages=f"filterd_test_labels: {len(filterd_test_labels)}")
@@ -300,14 +300,13 @@ def _execute(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     # *  ************************  * #
     # *  step 3. similarity analysis
     # *  ************************  * #
-    test_true_label: int = 1  # YES: 0,    Y3(1)
+    test_true_label: int = 1  # YES: 0,    Y3(1), label 1: 0 & 1109 可以結合
     # num_images: int = len(distribution_filtered_test_labels[test_true_label])
-    num_images: int = 2  # testing small sized instance
-    distance_matrix: jnp.ndarray
+    num_images: int = 3  # testing small sized instance
     Logger.debugging(
         messages=f"number of testing images: {len(distribution_filtered_test_labels[test_true_label])}"
     )
-    distance_matrix = Similarity.generate_distance_matrix(
+    distance_matrix: jnp.ndarray = Similarity.generate_distance_matrix(
         all_data=distribution_filtered_test_labels[test_true_label],
         distance_type=dataset.distance_type,
         chunk_size=100,
@@ -316,15 +315,60 @@ def _execute(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     # * find the similar data
     similarity_data: List[int] = Similarity.greedy(distance_matrix=distance_matrix)
     group: Dict[Tuple[int], List[int]] = Similarity.output_vector_similarity(
-        all_inference_result=all_inference_result[test_true_label]
+        all_inference_result=all_inference_result[test_true_label],
+        distance_matrix=distance_matrix
     )
     all_inputs: List[jnp.ndarray] = []
-    for id, value in enumerate(similarity_data):
-        if id < num_images:
-            all_inputs.append(distribution_filtered_test_labels[test_true_label][value])
-            Logger.debugging(f"similarity_data: {value}")
-        else:
-            break
+    # for id, value in enumerate(similarity_data):
+    #     if id < num_images:
+    #         all_inputs.append(distribution_filtered_test_labels[test_true_label][value])
+    #         Logger.debugging(f"similarity_data: {value}")
+    #     else:
+    #         break
+
+    for output_vector, data_ids in group.items():
+        if len(data_ids) >= num_images:
+            global COUNT
+            COUNT = 0
+            all_inputs = []
+            for id in data_ids:
+                Logger.debugging(f"similarity_data: {id}")
+                all_inputs.append(distribution_filtered_test_labels[test_true_label][id])
+            # *  ************************  * #
+            # *  step 5. Verify 𝒜 -> r.
+            # *     if r is UNSAT: STOP
+            # *     else:
+            # *         divide 𝒜 into 𝒜_1, 𝒜_2,..., 𝒜_n
+            # *         back to step 5 to verify each 𝒜_i
+            # *  ************************  * #
+            Logger.info(messages="start verifying ...")
+            start_time = time.time()
+            result: str = verify(
+                solver=solver,
+                dataset=dataset,
+                all_inputs=all_inputs,
+                mergedtype=mergedtype,
+                true_label=test_true_label,
+            )
+            end_time = time.time()
+            Logger.info(
+                messages=f"elapsed time for batch verification is : {end_time - start_time}"
+            )
+            Logger.info(messages=f"number of iterations: {COUNT}")
+
+            # * save the experiment result to csv file
+            Results.record_experiments(
+                robustness_type="Lp",
+                dataset="mnist",
+                inputs=data_ids,
+                num_data=len(data_ids),
+                distance=dataset.distance_type,
+                time=str(end_time - start_time),
+                num_iterations=COUNT,
+                epsilon=dataset.epsilon,
+            )
+
+
     # next_data: int = 0
     # while len(all_inputs) < num_images:
     #     Logger.debugging(f"similarity_data: {next_data}")
@@ -335,27 +379,27 @@ def _execute(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     # lex_order_result: List[int] = Similarity.lexicgraphical_order(all_data=all_inputs)
     # all_inputs = [all_inputs[i] for i in lex_order_result]
 
-    # *  ************************  * #
-    # *  step 5. Verify 𝒜 -> r.
-    # *     if r is UNSAT: STOP
-    # *     else:
-    # *         divide 𝒜 into 𝒜_1, 𝒜_2,..., 𝒜_n
-    # *         back to step 5 to verify each 𝒜_i
-    # *  ************************  * #
-    Logger.info(messages="start verifying ...")
-    start_time = time.time()
-    result: str = verify(
-        solver=solver,
-        dataset=dataset,
-        all_inputs=all_inputs,
-        mergedtype=mergedtype,
-        true_label=test_true_label,
-    )
-    end_time = time.time()
-    Logger.info(
-        messages=f"elapsed time for batch verification is : {end_time - start_time}"
-    )
-    Logger.info(messages=f"number of iterations: {COUNT}")
+    # # *  ************************  * #
+    # # *  step 5. Verify 𝒜 -> r.
+    # # *     if r is UNSAT: STOP
+    # # *     else:
+    # # *         divide 𝒜 into 𝒜_1, 𝒜_2,..., 𝒜_n
+    # # *         back to step 5 to verify each 𝒜_i
+    # # *  ************************  * #
+    # Logger.info(messages="start verifying ...")
+    # start_time = time.time()
+    # result: str = verify(
+    #     solver=solver,
+    #     dataset=dataset,
+    #     all_inputs=all_inputs,
+    #     mergedtype=mergedtype,
+    #     true_label=test_true_label,
+    # )
+    # end_time = time.time()
+    # Logger.info(
+    #     messages=f"elapsed time for batch verification is : {end_time - start_time}"
+    # )
+    # Logger.info(messages=f"number of iterations: {COUNT}")
 
     # * individual verification
     # start_time = time.time()
@@ -375,16 +419,16 @@ def _execute(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     # )
     # Logger.info(messages=f"number of iterations: {COUNT}")
 
-    # * save the experiment result to csv file
-    Results.record_experiments(
-        robustness_type="Lp",
-        dataset="mnist",
-        num_data=num_images,
-        distance=dataset.distance_type,
-        time=str(end_time - start_time),
-        num_iterations=COUNT,
-        epsilon=dataset.epsilon,
-    )
+    # # * save the experiment result to csv file
+    # Results.record_experiments(
+    #     robustness_type="Lp",
+    #     dataset="mnist",
+    #     num_data=num_images,
+    #     distance=dataset.distance_type,
+    #     time=str(end_time - start_time),
+    #     num_iterations=COUNT,
+    #     epsilon=dataset.epsilon,
+    # )
 
     return result
 

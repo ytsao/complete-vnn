@@ -27,6 +27,7 @@ class Results:
         robustness_type: str,
         dataset: str,
         num_data: int,
+        inputs: List[int],
         distance: str,
         time: str,
         num_iterations: int,
@@ -40,6 +41,7 @@ class Results:
         df["Num Data"] = [num_data]
         df["Distance"] = [distance]
         df["Time"] = [time]
+        df["Input ID"] = [inputs]
         df["Num Iterations"] = [num_iterations]
 
         if robustness_type == "Lp":
