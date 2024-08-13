@@ -8,6 +8,7 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = (
     "3"  # disable information and warning from tensorflow
 )
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["JAX_TRACEBACK_FILTERING"] = "off"
 import argparse
 
 from matplotlib import pyplot as plt
@@ -302,7 +303,7 @@ def _execute(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     # *  ************************  * #
     test_true_label: int = 1  # YES: 0,    Y3(1), label 1: 0 & 1109 可以結合
     # num_images: int = len(distribution_filtered_test_labels[test_true_label])
-    num_images: int = 3  # testing small sized instance
+    num_images: int = 200  # testing small sized instance
     Logger.debugging(
         messages=f"number of testing images: {len(distribution_filtered_test_labels[test_true_label])}"
     )
@@ -313,71 +314,73 @@ def _execute(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     )
 
     # * find the similar data
-    similarity_data: List[int] = Similarity.greedy(distance_matrix=distance_matrix)
-    group: Dict[Tuple[int], List[int]] = Similarity.output_vector_similarity(
-        all_inference_result=all_inference_result[test_true_label],
-        distance_matrix=distance_matrix
-    )
     all_inputs: List[jnp.ndarray] = []
-    # for id, value in enumerate(similarity_data):
-    #     if id < num_images:
-    #         all_inputs.append(distribution_filtered_test_labels[test_true_label][value])
-    #         Logger.debugging(f"similarity_data: {value}")
-    #     else:
-    #         break
+    similarity_data: List[int] = Similarity.greedy(distance_matrix=distance_matrix)
+    for id, value in enumerate(similarity_data):
+        if id < num_images:
+            all_inputs.append(distribution_filtered_test_labels[test_true_label][value])
+        else:
+            break
 
-    for output_vector, data_ids in group.items():
-        if len(data_ids) >= num_images:
-            global COUNT
-            COUNT = 0
-            all_inputs = []
-            for id in data_ids:
-                Logger.debugging(f"similarity_data: {id}")
-                all_inputs.append(distribution_filtered_test_labels[test_true_label][id])
-            # *  ************************  * #
-            # *  step 5. Verify 𝒜 -> r.
-            # *     if r is UNSAT: STOP
-            # *     else:
-            # *         divide 𝒜 into 𝒜_1, 𝒜_2,..., 𝒜_n
-            # *         back to step 5 to verify each 𝒜_i
-            # *  ************************  * #
-            Logger.info(messages="start verifying ...")
-            start_time = time.time()
-            result: str = verify(
-                solver=solver,
-                dataset=dataset,
-                all_inputs=all_inputs,
-                mergedtype=mergedtype,
-                true_label=test_true_label,
-            )
-            end_time = time.time()
-            Logger.info(
-                messages=f"elapsed time for batch verification is : {end_time - start_time}"
-            )
-            Logger.info(messages=f"number of iterations: {COUNT}")
+    # * testing "meet merging rule"
+    # ! testing failed -> there is no two data can be merged by considering overlapped
+    # Logger.debugging(messages="testing meet merging rule")
+    # Logger.debugging(messages=f"all_inputs: {similarity_data}")
+    # meet_mergeing_result: List[List[int]] = Similarity.meet_merging_rule(
+    #     all_data=all_inputs, dataset=dataset
+    # )
 
-            # * save the experiment result to csv file
-            Results.record_experiments(
-                robustness_type="Lp",
-                dataset="mnist",
-                inputs=data_ids,
-                num_data=len(data_ids),
-                distance=dataset.distance_type,
-                time=str(end_time - start_time),
-                num_iterations=COUNT,
-                epsilon=dataset.epsilon,
-            )
+    # group: Dict[Tuple[int], List[int]] = Similarity.output_vector_similarity(
+    #     all_inference_result=all_inference_result[test_true_label],
+    #     distance_matrix=distance_matrix,
+    # )
+    # for output_vector, data_ids in group.items():
+    #     if len(data_ids) >= num_images:
+    #         global COUNT
+    #         COUNT = 0
+    #         all_inputs = []
+    #         for id in data_ids:
+    #             Logger.debugging(f"similarity_data: {id}")
+    #             all_inputs.append(
+    #                 distribution_filtered_test_labels[test_true_label][id]
+    #             )
+    #         # *  ************************  * #
+    #         # *  step 5. Verify 𝒜 -> r.
+    #         # *     if r is UNSAT: STOP
+    #         # *     else:
+    #         # *         divide 𝒜 into 𝒜_1, 𝒜_2,..., 𝒜_n
+    #         # *         back to step 5 to verify each 𝒜_i
+    #         # *  ************************  * #
+    #         Logger.info(messages="start verifying ...")
+    #         start_time = time.time()
+    #         result: str = verify(
+    #             solver=solver,
+    #             dataset=dataset,
+    #             all_inputs=all_inputs,
+    #             mergedtype=mergedtype,
+    #             true_label=test_true_label,
+    #         )
+    #         end_time = time.time()
+    #         Logger.info(
+    #             messages=f"elapsed time for batch verification is : {end_time - start_time}"
+    #         )
+    #         Logger.info(messages=f"number of iterations: {COUNT}")
 
+    #         # * save the experiment result to csv file
+    #         Results.record_experiments(
+    #             robustness_type="Lp",
+    #             dataset="mnist",
+    #             inputs=data_ids,
+    #             num_data=len(data_ids),
+    #             distance=dataset.distance_type,
+    #             time=str(end_time - start_time),
+    #             num_iterations=COUNT,
+    #             epsilon=dataset.epsilon,
+    #         )
 
-    # next_data: int = 0
-    # while len(all_inputs) < num_images:
-    #     Logger.debugging(f"similarity_data: {next_data}")
-    #     all_inputs.append(distribution_filtered_test_labels[test_true_label][next_data])
-    #     next_data = similarity_data[next_data]
-
-    # * sort the input data by lexicographical order
-    # lex_order_result: List[int] = Similarity.lexicgraphical_order(all_data=all_inputs)
-    # all_inputs = [all_inputs[i] for i in lex_order_result]
+    # // sort the input data by lexicographical order (archived)
+    # //lex_order_result: List[int] = Similarity.lexicgraphical_order(all_data=all_inputs)
+    # //all_inputs = [all_inputs[i] for i in lex_order_result]
 
     # # *  ************************  * #
     # # *  step 5. Verify 𝒜 -> r.

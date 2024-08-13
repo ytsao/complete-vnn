@@ -1,5 +1,6 @@
-from typing import List, Any, Dict, Tuple
+from typing import List, Any, Dict, Tuple, Set
 from functools import partial
+from itertools import compress
 
 import numpy as np
 from jax import jit, lax
@@ -113,14 +114,40 @@ class Similarity:
 
         return similarity_data
 
-    # TODO: Test if the two pre-conditions are overlapped, then merge them together.
+    # // [20240703] this function is not used in this project.
+    # //            because I tested 200 data, there is no input will be overlapped for each.
     @staticmethod
-    def meet_merging_rule(all_data: List[jnp.ndarray]) -> List[List[int]]:
-        meet_merging_result: List[List[int]] = []
-        for each_data in all_data:
-            print()
+    def meet_merging_rule(
+        all_data: List[jnp.ndarray], dataset: DataSet
+    ) -> List[Tuple[int]]:
+        meet_merging_result: Set[List[int]] = set()
+        for id, each_data in enumerate(all_data):
+            # * What's the most efficient way to test if two ranges overlap?
+            # * https://stackoverflow.com/questions/3269434/whats-the-most-efficient-way-to-test-if-two-ranges-overlap
+            isSingleOverlapped: jnp.ndarray = jnp.array(
+                [
+                    jnp.all(
+                        (
+                            jnp.maximum(0, each_data2 - dataset.epsilon)
+                            <= jnp.minimum(1, each_data + dataset.epsilon)
+                        )
+                        & (
+                            jnp.maximum(0, each_data - dataset.epsilon)
+                            <= jnp.minimum(1, each_data2 + dataset.epsilon)
+                        )
+                    )
+                    for id2, each_data2 in enumerate(all_data)
+                ],
+            )
+            # tmp_mergin_result.extend(list(compress(all_data, isSingleOverlapped)))
+            tmp_mergin_result: Tuple[int] = tuple(
+                jnp.where(isSingleOverlapped)[0].tolist()
+            )
+            meet_merging_result.add(tmp_mergin_result)
 
-        return meet_merging_result
+        Logger.debugging(f"Meet merging result: {list(meet_merging_result)}")
+
+        return list(meet_merging_result)
 
     # // archived code
     # // in testing, lexicographical order is not working to measure the similarity between inputs.
@@ -232,11 +259,14 @@ class Similarity:
         # * Custom sorting function: sum of distances to all other nodes
         # * order each group by the distance matrix
         for key, value in group.items():
+
             def sort_key(node):
-                return sum(distance_matrix[node][other] for other in value if other != node)
+                return sum(
+                    distance_matrix[node][other] for other in value if other != node
+                )
+
             value = sorted(value, key=sort_key)
             group[key] = value
-
 
         # * summary
         summary_table: Dict[int, int] = dict()
