@@ -89,6 +89,10 @@ def verify(
         result = crown_verifier(
             onnx_file_path=dataset.onnx_filename, vnnlib_file_path=vnnlib_filename
         )
+    elif solver is VerificationSolver.BOX:
+        Logger.info(messages="Verification Algorithm is BOX")
+    elif solver is VerificationSolver.ZONOTOPE:
+        Logger.info(messages="Verification Algorithm is ZONOTOPE")
 
     if result == "UNSAT":
         Logger.info(messages="UNSAT, New template generated!")
