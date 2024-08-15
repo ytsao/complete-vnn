@@ -179,7 +179,7 @@ def verify(
     return result
 
 
-def _execute(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
+def _execute(solver: VerificationSolver, mergedtype: InputMergedBy) -> None:
     """
     Batch verification algorithm:
         step 0: read the input files (onnx, image files)
@@ -214,6 +214,7 @@ def _execute(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
         dataset_name="mnist",
         onnx_filename="./util/benchmarks/onnx/mnist-net_256x2.onnx",
         robustness_type=RobustnessType.LP_NORM,
+        num_inputs=2,  # len(distribution_filtered_test_labels[test_true_label])
         distance_type="l2",
         epsilon=0.03,
     )
@@ -302,8 +303,6 @@ def _execute(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     # *  step 3. similarity analysis
     # *  ************************  * #
     test_true_label: int = 1  # YES: 0,    Y3(1), label 1: 0 & 1109 可以結合
-    # num_images: int = len(distribution_filtered_test_labels[test_true_label])
-    num_images: int = 200  # testing small sized instance
     Logger.debugging(
         messages=f"number of testing images: {len(distribution_filtered_test_labels[test_true_label])}"
     )
@@ -317,7 +316,7 @@ def _execute(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     all_inputs: List[jnp.ndarray] = []
     similarity_data: List[int] = Similarity.greedy(distance_matrix=distance_matrix)
     for id, value in enumerate(similarity_data):
-        if id < num_images:
+        if id < dataset.num_inputs:
             all_inputs.append(distribution_filtered_test_labels[test_true_label][value])
         else:
             break
@@ -433,7 +432,7 @@ def _execute(solver: VerificationSolver, mergedtype: InputMergedBy) -> str:
     #     epsilon=dataset.epsilon,
     # )
 
-    return result
+    return
 
 
 def main(

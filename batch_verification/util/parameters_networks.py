@@ -42,6 +42,7 @@ class DataSet:
     num_channel: int = field(init=False)
 
     # The information for robustness verification
+    num_inputs: int = field(init=False)
     distance_type: str = field(default="l1")
     epsilon: float = field(init=False)
     rotation_degree: float = field(init=False)

@@ -101,6 +101,7 @@ def load_dataset(
     dataset_name: str,
     onnx_filename: str,
     robustness_type: RobustnessType,
+    num_inputs: int = 1,
     distance_type: str = "l1",
     epsilon: float = 0.1,
     rotation_degree: float = 10,
@@ -148,6 +149,7 @@ def load_dataset(
     dataset.num_channel = c
 
     # define robustness verification type
+    dataset.num_inputs = num_inputs
     dataset.distance_type = distance_type
     if robustness_type == RobustnessType.LP_NORM:
         dataset.epsilon = epsilon
