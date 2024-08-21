@@ -185,7 +185,7 @@ def extract_network_structure(
     n.num_outputs = num_outputs
 
     n.num_post_region = len(post_condition)
-
+    # n.layer_type = [] # TODO: identify the function in the layer
     n.layer_to_layer = _get_layer_to_layer(onnx_model)
     n.num_layers = len(n.layer_to_layer) + 1
     n.matrix_weights = _get_weight_matrix(onnx_model)

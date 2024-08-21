@@ -15,6 +15,7 @@ class NetworksStructure:
     # if there is an 'or' condition in output region, then it is >= 2
     num_post_region: int = field(default=0)
 
+    layer_type: List[str] = field(init=False)  # identify the function in the layer
     layer_to_layer: List[Tuple[int, int]] = field(init=False)  # from, to
     matrix_weights: List[List[List[float]]] = field(init=False)  # layer, from, to
     vector_bias: List[List[float]] = field(init=False)  # layer, neuron
