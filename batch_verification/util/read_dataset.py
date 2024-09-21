@@ -1,5 +1,3 @@
-from .parameters_networks import DataSet
-from .parameters_networks import NetworksStructure
 import jax.numpy as jnp
 import tensorflow_datasets as tfds
 from typing import List, Tuple
@@ -13,6 +11,10 @@ import numpy as np
 import tensorflow as tf
 
 tf.config.set_visible_devices([], device_type="GPU")
+
+from .options import RobustnessType
+from .parameters_networks import DataSet
+from .parameters_networks import NetworksStructure
 
 
 def _read_onnx_model(onnx_file_path: str) -> onnx.ModelProto:
@@ -95,12 +97,22 @@ def _read_vnnlib_spec(vnnlib_file_path: str, inputs: int, outputs: int):
     return vnnlib_spec
 
 
-def load_dataset(dataset_name: str) -> DataSet:
+def load_dataset(
+    dataset_name: str,
+    onnx_filename: str,
+    robustness_type: RobustnessType,
+    num_inputs: int = 1,
+    distance_type: str = "l1",
+    epsilon: float = 0.1,
+    rotation_degree: float = 10,
+    brightness_level: float = 0.1,
+) -> DataSet:
     def _one_hot(x, k, dtype=jnp.float32):
         """Create a one-hot encoding of x of size k."""
         return jnp.array(x[:, None] == jnp.arange(k), dtype)
 
     dataset: DataSet = DataSet()
+    dataset.onnx_filename = onnx_filename
 
     data_dir = f"./dataset/{dataset_name}"
 
@@ -136,6 +148,22 @@ def load_dataset(dataset_name: str) -> DataSet:
     dataset.num_weight = w
     dataset.num_channel = c
 
+    # define robustness verification type
+    dataset.num_inputs = num_inputs
+    dataset.distance_type = distance_type
+    if robustness_type == RobustnessType.LP_NORM:
+        dataset.epsilon = epsilon
+        dataset.rotation_degree = 0
+        dataset.brightness_level = 0
+    elif robustness_type == RobustnessType.ROTATION:
+        dataset.rotation_degree = rotation_degree
+        dataset.epsilon = 0
+        dataset.brightness_level = 0
+    elif robustness_type == RobustnessType.BRIGHTNESS:
+        dataset.brightness_level = brightness_level
+        dataset.epsilon = 0
+        dataset.rotation_degree = 0
+
     return dataset
 
 
@@ -157,7 +185,7 @@ def extract_network_structure(
     n.num_outputs = num_outputs
 
     n.num_post_region = len(post_condition)
-
+    # n.layer_type = [] # TODO: identify the function in the layer
     n.layer_to_layer = _get_layer_to_layer(onnx_model)
     n.num_layers = len(n.layer_to_layer) + 1
     n.matrix_weights = _get_weight_matrix(onnx_model)

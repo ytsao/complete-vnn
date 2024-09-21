@@ -94,7 +94,7 @@ class SCIPModel(MIPOptimizer):
         """
         solve MIP model
         """
-        # self.solver._model.setParam("limits/solutions", 1)s
+        self.solver._model.setParam("limits/solutions", 1)
         self.solver._model.optimize()
 
         return
