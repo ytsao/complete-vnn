@@ -3,6 +3,7 @@ from functools import partial
 from itertools import compress
 
 import numpy as np
+import jax
 from jax import jit, lax
 import jax.numpy as jnp
 from jax.experimental.host_callback import call
@@ -113,6 +114,44 @@ class Similarity:
         Logger.debugging(f"Similarity data: {similarity_data}")
 
         return similarity_data
+
+    @staticmethod
+    def kmeans(
+        group: List[int],
+        dim_inputs: int,
+        num_clusters: int = 2,
+    ) -> List[List[int]]:
+        result: List[List[int]] = []
+        for _ in range(num_clusters):
+            result.append([])
+
+        centroids: List[jnp.ndarray] = []
+        for _ in range(num_clusters):
+            key = jax.random.PRNGKey(0)
+            random_centroids: jnp.ndarray = jax.random.uniform(
+                key=key, shape=(dim_inputs,)
+            )
+            centroids.append(random_centroids)
+
+        Logger.debugging(f"Initial Centroids: {centroids}")
+
+        isChanged: bool = True
+        while isChanged:
+            # compute distance between each data point and centroids
+            for each_data in group:
+                distance: int = 99999
+                closest_centroid: int = -1
+                for cid, centroid in enumerate(centroids):
+                    d = jnp.linalg.norm(each_data - centroid)
+                    if d < distance:
+                        distance = d
+                        closest_centroid = cid
+                if each_data not in result[closest_centroid]:
+                    isChanged = True
+                    result[closest_centroid].append(each_data)
+                    # TODO : remove
+
+        return result
 
     # // [20240703] this function is not used in this project.
     # //            because I tested 200 data, there is no input will be overlapped for each.

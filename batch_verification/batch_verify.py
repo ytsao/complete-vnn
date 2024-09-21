@@ -324,6 +324,11 @@ def _execute(solver: VerificationSolver, mergedtype: InputMergedBy) -> None:
             all_inputs.append(distribution_filtered_test_labels[test_true_label][value])
         else:
             break
+    Similarity.kmeans(
+        group=all_inputs,
+        dim_inputs=dataset.num_pixels,
+        num_clusters=2,
+    )
 
     # * testing "meet merging rule"
     # ! testing failed -> there is no two data can be merged by considering overlapped

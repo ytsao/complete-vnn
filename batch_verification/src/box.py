@@ -48,8 +48,8 @@ def _create_box_vars(
     env: PyEnvironment, man: PyManager, real_vars: List[List[PyVar]]
 ) -> List[List[PyBox]]:
     box_vars: List[List[PyBox]] = []
-    lb: float = -99999
-    ub: float = 99999
+    lb: float = -9999
+    ub: float = 9999
     for layer_real_vars in real_vars:
         layer_box_vars: List[PyBox] = []
         for each_var in layer_real_vars:
@@ -101,11 +101,27 @@ def _forward_propagation(
                     PyDoubleScalarCoeff(float(networks.matrix_weights[k][i][j])),
                 )
             expr.set_cst(PyDoubleScalarCoeff(float(networks.vector_bias[k][j])))
-            box_vars[k + 2][j].bound_linexpr(expr)
+            box_vars[k + 2][j].bound_linexpr(
+                expr
+            )  # TODO: not sure why the constraints are not being added to the box.
 
-    for bb in box_vars:
-        for b in bb:
-            print(str(b))
+    return
+
+
+def relu(
+    env: PyEnvironment,
+    man: PyManager,
+    networks: NetworksStructure,
+    real_vars: List[List[PyVar]],
+    box_vars: List[List[PyBox]],
+) -> None:
+    for k, Nk in enumerate(networks.layer_to_layer):
+        if k == 0:
+            continue
+
+        # TODO: Implement ReLU activation function
+        for nk in range(Nk[0]):
+            print("")
 
     return
 
