@@ -1,26 +1,29 @@
-from typing import Dict, List
+from typing import Any, List
 
 import jax.numpy as jnp
 import pandas as pd
 
 
 class Results:
-    counter_examples: Dict[int, List[jnp.ndarray]] = {}
-    unsatisfiable_inputs: Dict[int, List[int]] = {}
+    def __init__(self):
+        self.COLUMN_NAMES: List[str] = ["Robustness Type",
+                                        "Dataset",
+                                        "Data ID",
+                                        "Distance",
+                                        "Time",
+                                        "Status",
+                                        "Epsilon",
+                                        "Degree",
+                                        "Brightness"]
+        self.df = pd.DataFrame(columns=self.COLUMN_NAMES)
 
-    @staticmethod
-    def add(ce_id: int, ce: jnp.ndarray, label: int) -> None:
-        if label not in Results.counter_examples:
-            Results.counter_examples[label] = []
-            Results.unsatisfiable_inputs[label] = []
-        Results.unsatisfiable_inputs[label].append(ce_id)
-        Results.counter_examples[label].append(ce)
-
-    @staticmethod
-    def get_unsatisfiable_inputs(label: int) -> List[int]:
-        if label not in Results.unsatisfiable_inputs:
-            return []
-        return Results.unsatisfiable_inputs[label]
+    def add_result(self, new_result: List[Any]):
+        self.df.loc[len(self.df)] = new_result
+        return 
+    
+    def save_to_csv(self):
+        self.df.to_csv("./results.csv", mode="w", header=True, index=False)
+        return
 
     @staticmethod
     def record_experiments(

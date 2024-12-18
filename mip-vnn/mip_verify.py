@@ -1,5 +1,4 @@
-from collections import defaultdict
-from typing import List, Dict, Tuple
+from typing import List, Dict, Any
 import time
 import os
 
@@ -99,11 +98,11 @@ def _execute(solver: VerificationSolver) -> None:
     Logger.info(messages="step 0: read the input files")
     dataset: DataSet = load_dataset(
         dataset_name="mnist",
-        onnx_filename="./utils/benchmarks/onnx/mnist-net_256x2.onnx",
+        onnx_filename="./utils/benchmarks/onnx/fc_5x100.onnx",
         robustness_type=RobustnessType.LP_NORM,
-        num_inputs=2,  # len(distribution_filtered_test_labels[test_true_label])
-        distance_type="l2",
-        epsilon=0.03,
+        num_inputs=1,  # len(distribution_filtered_test_labels[test_true_label])
+        distance_type="linf",
+        epsilon=0.1,
     )
 
     # step 1.
@@ -214,42 +213,42 @@ def _execute(solver: VerificationSolver) -> None:
 
     # step 4. & step 5.
     all_inputs: List[jnp.ndarray] = distribution_filtered_test_labels[T]
-    for each_input in all_inputs:
-        verify(solver=solver,
-               dataset=dataset,
-               input=each_input)
-
-    # step 6.
-    # # * save the experiment result to csv file
-    # Results.record_experiments(
-    #     robustness_type="Lp",
-    #     dataset="mnist",
-    #     num_data=num_images,
-    #     distance=dataset.distance_type,
-    #     time=str(end_time - start_time),
-    #     num_iterations=COUNT,
-    #     epsilon=dataset.epsilon,
-    # )
+    results: Results = Results()
+    for i, each_input in enumerate(all_inputs):
+        if i < dataset.num_inputs:
+            start_time = time.time()
+            status: str = verify(solver=solver, dataset=dataset, input=each_input)
+            end_time = time.time()
+            new_result: List[Any] = ["Lp", 
+                                     "mnist", 
+                                     i, 
+                                     dataset.distance_type, 
+                                     str(end_time - start_time),
+                                     status,
+                                     dataset.epsilon,
+                                     dataset.rotation_degree,
+                                     dataset.brightness_level]
+            results.add_result(new_result)
 
     return
 
 
 def main(solver: VerificationSolver = VerificationSolver.SCIP) -> str:
     Logger.initialize(filename="log.txt", with_log_file=False)
-    Logger.info(messages="batch verification is starting...")
-
-    Logger.info(messages="release mode is enabled")
-    return _execute(solver=solver)
+    Logger.info(messages="mip verification is starting...")
+    
+    _execute(solver=solver)
+    
+    Logger.info(messages="mip verification is finished!")
+    
+    return 
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--solver", type=str, default="scip")
-    parser.add_argument("--mergedtype", type=str, default="join")
 
     args = parser.parse_args()
     solver: VerificationSolver = VerificationSolver(args.solver)
 
     main(solver=solver)
-
-    Logger.info(messages="batch verification is finished!")

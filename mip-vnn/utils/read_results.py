@@ -32,8 +32,6 @@ def get_ce(
 ) -> List[float]:
     if solver == VerificationSolver.GUROBI or solver == VerificationSolver.SCIP:
         return MIP.get_ce(m, networks)
-    elif solver == VerificationSolver.CROWN:
-        return Crown.get_ce(filename)
     else:
         Logger.error(f"Solver {solver} not supported")
         return []

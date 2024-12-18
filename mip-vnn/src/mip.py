@@ -357,14 +357,9 @@ def mip_verifier(
 
     # create constraints
     _Constraints.pre_condition(m=m, networks=networks)
-    # _Constraints.post_condition(m=m, dataset=dataset, data_id=0, networks=networks)
     _Constraints.post_condition(m=m, networks=networks)
     _Constraints.feedforward_networks(m=m, networks=networks)
-    # _Constraints.convolutional_networks(m=m)
-    # _Constraints.residual_networks(m=m)
-    # _Constraints.max_pooling(m=m)
     _Constraints.relu(m=m, networks=networks)
-    # _Constraints.sigmoid(m=m)
 
     # export lp file
     m.export_lp_file("mip")
