@@ -1,11 +1,11 @@
-# mip-vnn 
+# complete-vnn 
 
-This repository implements a mixed-integer programming model to certify neural networks.
+This repository implements different complete methods to verify neural networks.
 
 
 ## Dependencies
-scip \& gurobi python interface.
-
+* MIP: scip \& gurobi python interface.
+* SMT: z3
 
 ## Reference
 - [Evaluating Robustness of Neural Networks with Mixed Integer Programming](https://arxiv.org/abs/1711.07356)
