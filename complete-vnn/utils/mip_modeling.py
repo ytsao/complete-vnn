@@ -14,7 +14,7 @@ except ImportError:
 
 
 @dataclass
-class Model:
+class MIPModel:
     solver_name: str = field(default="scip")
     # from gurobi or scip module, only for gurobi_modeling or scip_modeling used
     _model: gp.Model | pyscipopt.Model = field(init=False)

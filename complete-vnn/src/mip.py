@@ -2,12 +2,10 @@ from typing import Any, List
 
 import numpy as np
 
-from utils import Model
+from utils import MIPModel
 from utils import SCIPModel
 from utils import GurobiModel
 from utils import NetworksStructure
-from utils import DataSet
-from utils import read_dataset
 from utils.log import Logger
 
 # required >= 3.12 version
@@ -293,7 +291,7 @@ def _create_decision_variables(
     return m
 
 
-def _print_results(m: SCIPModel | GurobiModel) -> None:
+def dump(m: SCIPModel | GurobiModel) -> None:
     solution_status: str = m.get_solution_status()
     if solution_status == "Infeasible":
         print("UNSAT")
@@ -318,10 +316,10 @@ def mip_verifier(
     m: SCIPModel | GurobiModel | None = None
     if solver_name == "scip":
         Logger.info(messages="SCIP solver is used.")
-        m = SCIPModel(solver=Model())
+        m = SCIPModel(solver=MIPModel())
     elif solver_name == "gurobi":
         Logger.info(messages="Gurobi solver is used.")
-        m = GurobiModel(solver=Model(solver_name="gurobi"))
+        m = GurobiModel(solver=MIPModel(solver_name="gurobi"))
     else:
         Logger.error(messages="Invalid solver type")
         raise ValueError("Invalid solver type")
@@ -367,6 +365,6 @@ def mip_verifier(
     m.optimize()
 
     # print results
-    _print_results(m=m)
+    dump(m=m)
 
     return m

@@ -14,10 +14,11 @@ import onnxruntime as ort
 import numpy as np
 
 from src.mip import mip_verifier
+from src.smt import smt_verifier
 
 from utils.gurobi_modeling import GurobiModel
 from utils.scip_modeling import SCIPModel
-from utils.mip_modeling import Model
+from utils.smt_modeling import SMTModel
 from utils.read_dataset import extract_network_structure, load_dataset
 from utils.read_results import get_ce
 from utils.parameters_networks import NetworksStructure, DataSet
@@ -57,6 +58,10 @@ def verify(
         Logger.info(messages=f"Verification Algorithm is MIP solver ({args.solver})")
         m: SCIPModel | GurobiModel = mip_verifier(solver_name=args.solver, networks=networks)
         result = "UNSAT" if m.get_solution_status() == "Infeasible" else "SAT"
+    elif args.solver == "z3":
+        Logger.info(messages="Verification Algorithm is SMT solver (Z3)")
+        m: SMTModel = smt_verifier(solver_name=args.solver, networks=networks)
+        result = "UNSAT" if m.get_solution_status() == "UNSAT" else "SAT"
     if result == "UNSAT":
         Logger.info(messages="UNSAT")
         return "UNSAT"
@@ -194,11 +199,11 @@ def _execute(args) -> None:
 
 def main(args) -> str:
     Logger.initialize(filename="log.txt", with_log_file=False)
-    Logger.info(messages="mip verification is starting...")
+    Logger.info(messages="complete verification is starting...")
     
     _execute(args)
     
-    Logger.info(messages="mip verification is finished!")
+    Logger.info(messages="complete verification is finished!")
     
     return 
 

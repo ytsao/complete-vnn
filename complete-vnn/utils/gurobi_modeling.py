@@ -8,13 +8,13 @@ except ImportError:
     print("no gurobi installed!!!!!!!!!!!!!!!!!!!!!!!")
     # sys.exit(1)
 
-from .mip_modeling import Model
+from .mip_modeling import MIPModel
 from .mip_modeling import MIPOptimizer
 
 
 class GurobiModel(MIPOptimizer):
-    def __init__(self, solver: Model) -> None:
-        self.solver: Model = solver
+    def __init__(self, solver: MIPModel) -> None:
+        self.solver: MIPModel = solver
         self.solver._model = gp.Model()
 
         return
