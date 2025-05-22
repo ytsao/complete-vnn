@@ -1,0 +1,4 @@
+name: complete_verify
+channels:
+  - https://repo.anaconda.com/pkgs/main
+  - https://repo.anaconda.com/pkgs/r
