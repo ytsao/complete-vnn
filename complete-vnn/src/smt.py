@@ -28,9 +28,9 @@ class _Constraints:
         
         # Only consider Conjunctive constraints 
         for j in range(len(networks.post_condition[0][0])):
-            m._model.add(z3.Sum(networks.post_condition[0][0][j][k] * m.continue_variables[f"x_{last_layer_id}_{k}"] - m.continue_variables[f"s_{last_layer_id}_{k}"] 
-                                for k in range(num_post_condition))
-                        <= networks.post_condition[0][1][j])
+            m._model.add(z3.Sum([networks.post_condition[0][0][j][k] * m.continue_variables[f"x_{last_layer_id}_{k}"] - m.continue_variables[f"s_{last_layer_id}_{k}"] 
+                                for k in range(num_post_condition)])
+                        <= float(networks.post_condition[0][1][j]))
 
         Logger.info(messages="Post-condition constraints are created")
         return 
@@ -41,9 +41,8 @@ class _Constraints:
 
         for k, Nk in enumerate(networks.layer_to_layer):
             for j in range(Nk[1]):
-                m._model.add(z3.Sum(networks.matrix_weights[k][i][j] * m.continue_variables[f"x_{k}_{i}"] for i in range(Nk[0])
-                                    + networks.vector_bias[k][j]) 
-                             == m.continue_variables[f"x_{k+1}_{j}"])
+                m._model.add(z3.Sum([networks.matrix_weights[k][i][j] * m.continue_variables[f"x_{k}_{i}"] for i in range(Nk[0])]) 
+                             == m.continue_variables[f"x_{k+1}_{j}"] - networks.vector_bias[k][j])
         
         Logger.info(messages="Feedforward constraints are created")
 
@@ -73,7 +72,7 @@ def _create_variables(m: SMTModel, networks: NetworksStructure) -> SMTModel:
             for nk in range(Nk[0]):
                 name: str = f"x_{k}_{nk}"
                 m.continue_variables[name] = z3.Real(name)
-        elif k <= networks.num_layers - 2:
+        elif k <= networks.num_layers - 3:
             for nk in range(Nk[0]):
                 name: str = f"x_{k}_{nk}"
                 m.continue_variables[name] = z3.Real(name)

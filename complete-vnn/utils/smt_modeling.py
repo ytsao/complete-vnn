@@ -7,7 +7,7 @@ import z3
 @dataclass 
 class SMTModel:
     solver_name: str = field(default="z3")
-    _model: z3.Solver = field(init=False)
+    _model: z3.Solver = z3.Solver() 
     binary_variables: defaultdict[Dict] = field(
         default_factory=lambda: defaultdict(Dict)
     )
