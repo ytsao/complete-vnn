@@ -5,7 +5,6 @@ from typing import Tuple, List
 from .gurobi_modeling import GurobiModel
 from .scip_modeling import SCIPModel
 from .parameters_networks import NetworksStructure
-from .options import VerificationSolver
 from .log import Logger
 
 class MIP:
@@ -25,12 +24,12 @@ class MIP:
 
 
 def get_ce(
-    solver: VerificationSolver,
+    solver: str,
     networks: NetworksStructure,
     filename: str,
     m: GurobiModel | SCIPModel | None = None,
 ) -> List[float]:
-    if solver == VerificationSolver.GUROBI or solver == VerificationSolver.SCIP:
+    if solver == "scip" or solver == "gurobi":
         return MIP.get_ce(m, networks)
     else:
         Logger.error(f"Solver {solver} not supported")

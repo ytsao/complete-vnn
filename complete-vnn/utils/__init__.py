@@ -7,5 +7,5 @@ from .read_dataset import extract_network_structure, load_dataset
 from .plot_results import *
 from .save_results import *
 from .log import Logger
-from .options import *
 from .read_results import *
+from .parser import *

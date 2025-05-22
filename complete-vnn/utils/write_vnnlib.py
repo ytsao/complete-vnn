@@ -1,13 +1,13 @@
 import sys
 import os
 from typing import List
-from jax import numpy as jnp
+import numpy as np
 
 from .parameters_networks import NetworksStructure
 
 
 def write_vnnlib(
-    data: jnp.ndarray, num_classes: int, true_label: int, epsilon: float
+    data: np.ndarray, num_classes: int, true_label: int, epsilon: float
 ) -> str:
     """
     write the data to vnnlib file.
@@ -94,4 +94,4 @@ def export_vnnlib(
 
 
 if __name__ == "__main__":
-    write_vnnlib(jnp.array([1, 2, 3, 4]), 0, 10, 5, 0.1)
+    write_vnnlib(np.array([1, 2, 3, 4]), 0, 10, 5, 0.1)

@@ -1,2 +1,2 @@
 from .mip import *
-from .similarity import *
+from .smt import *

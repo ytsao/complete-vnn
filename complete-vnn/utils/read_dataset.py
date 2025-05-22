@@ -1,4 +1,3 @@
-import jax.numpy as jnp
 import tensorflow_datasets as tfds
 from typing import List, Tuple
 
@@ -12,7 +11,6 @@ import tensorflow as tf
 
 tf.config.set_visible_devices([], device_type="GPU")
 
-from .options import RobustnessType
 from .parameters_networks import DataSet
 from .parameters_networks import NetworksStructure
 
@@ -100,16 +98,13 @@ def _read_vnnlib_spec(vnnlib_file_path: str, inputs: int, outputs: int):
 def load_dataset(
     dataset_name: str,
     onnx_filename: str,
-    robustness_type: RobustnessType,
-    num_inputs: int = 1,
-    distance_type: str = "l1",
+    robustness_type: str,
+    num_test: int = 1,
     epsilon: float = 0.1,
-    rotation_degree: float = 10,
-    brightness_level: float = 0.1,
 ) -> DataSet:
-    def _one_hot(x, k, dtype=jnp.float32):
+    def _one_hot(x, k, dtype=np.float32):
         """Create a one-hot encoding of x of size k."""
-        return jnp.array(x[:, None] == jnp.arange(k), dtype)
+        return np.array(x[:, None] == np.arange(k), dtype)
 
     dataset: DataSet = DataSet()
     dataset.onnx_filename = onnx_filename
@@ -127,13 +122,13 @@ def load_dataset(
 
     # Full train set
     train_images, train_labels = train_data["image"], train_data["label"]
-    train_images = jnp.reshape(train_images, (len(train_images), num_pixels))
+    train_images = np.reshape(train_images, (len(train_images), num_pixels))
     train_images = train_images / 255.0
     # train_labels = _one_hot(train_labels, num_labels) # no training, no need to one-hot encoding
 
     # Full test set
     test_images, test_labels = test_data["image"], test_data["label"]
-    test_images = jnp.reshape(test_images, (len(test_images), num_pixels))
+    test_images = np.reshape(test_images, (len(test_images), num_pixels))
     test_images = test_images / 255.0
     # test_labels = _one_hot(test_labels, num_labels)   # no training, no need to one-hot encoding
 
@@ -149,20 +144,8 @@ def load_dataset(
     dataset.num_channel = c
 
     # define robustness verification type
-    dataset.num_inputs = num_inputs
-    dataset.distance_type = distance_type
-    if robustness_type == RobustnessType.LP_NORM:
-        dataset.epsilon = epsilon
-        dataset.rotation_degree = 0
-        dataset.brightness_level = 0
-    elif robustness_type == RobustnessType.ROTATION:
-        dataset.rotation_degree = rotation_degree
-        dataset.epsilon = 0
-        dataset.brightness_level = 0
-    elif robustness_type == RobustnessType.BRIGHTNESS:
-        dataset.brightness_level = brightness_level
-        dataset.epsilon = 0
-        dataset.rotation_degree = 0
+    dataset.num_inputs = num_test
+    dataset.epsilon = epsilon
 
     return dataset
 

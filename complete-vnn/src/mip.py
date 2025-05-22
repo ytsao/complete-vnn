@@ -1,6 +1,6 @@
 from typing import Any, List
 
-from jax import numpy as jnp
+import numpy as np
 
 from utils import Model
 from utils import SCIPModel
@@ -8,7 +8,6 @@ from utils import GurobiModel
 from utils import NetworksStructure
 from utils import DataSet
 from utils import read_dataset
-from utils.options import VerificationSolver
 from utils.log import Logger
 
 # required >= 3.12 version
@@ -313,14 +312,14 @@ def _print_results(m: SCIPModel | GurobiModel) -> None:
 
 
 def mip_verifier(
-    solver_name: VerificationSolver, networks: NetworksStructure
+    solver_name: str, networks: NetworksStructure
 ) -> SCIPModel | GurobiModel | None:
     """ """
     m: SCIPModel | GurobiModel | None = None
-    if solver_name is VerificationSolver.SCIP:
+    if solver_name == "scip":
         Logger.info(messages="SCIP solver is used.")
         m = SCIPModel(solver=Model())
-    elif solver_name is VerificationSolver.GUROBI:
+    elif solver_name == "gurobi":
         Logger.info(messages="Gurobi solver is used.")
         m = GurobiModel(solver=Model(solver_name="gurobi"))
     else:

@@ -1,2 +1,2 @@
 #!/bin/sh
-python mip_verify.py --solver=gurobi
+python complete_verify.py --solver=gurobi

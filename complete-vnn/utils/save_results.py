@@ -1,6 +1,5 @@
 from typing import Any, List
 
-import jax.numpy as jnp
 import pandas as pd
 
 
@@ -9,12 +8,9 @@ class Results:
         self.COLUMN_NAMES: List[str] = ["Robustness Type",
                                         "Dataset",
                                         "Data ID",
-                                        "Distance",
                                         "Time",
                                         "Status",
-                                        "Epsilon",
-                                        "Degree",
-                                        "Brightness"]
+                                        "Epsilon"]
         self.df = pd.DataFrame(columns=self.COLUMN_NAMES)
 
     def add_result(self, new_result: List[Any]):
