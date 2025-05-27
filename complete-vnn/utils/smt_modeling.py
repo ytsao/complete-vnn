@@ -1,13 +1,22 @@
-from typing import List, Tuple, Dict, Any
+"""
+This module defines the SMT-based model for neural network verification.
+"""
+
+from typing import Dict
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-import z3 
+import z3
 
-@dataclass 
+
+@dataclass
 class SMTModel:
+    """
+    SMTModel class to create a Z3 solver model for verification.
+    """
+
     solver_name: str = field(default="z3")
-    _model: z3.Solver = z3.Solver() 
+    model: z3.Solver = z3.Solver()
     binary_variables: defaultdict[Dict] = field(
         default_factory=lambda: defaultdict(Dict)
     )

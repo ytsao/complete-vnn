@@ -1,6 +1,14 @@
-from typing import List, Dict, Any
+"""
+This module implements the complete verification process for neural networks.
+Author: Yi-Nung Tsao
+"""
+
 import time
 import os
+from typing import List, Dict, Any
+
+import numpy as np
+import onnxruntime as ort
 
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = (
@@ -8,10 +16,6 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = (
 )
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 os.environ["JAX_TRACEBACK_FILTERING"] = "off"
-
-from matplotlib import pyplot as plt
-import onnxruntime as ort
-import numpy as np
 
 from src.mip import mip_verifier
 from src.smt import smt_verifier
@@ -31,32 +35,32 @@ from utils.log import Logger
 import utils.parser as parser
 
 # global configuration
-T: int = 0 # true label
+T: int = 0  # true label
 
 
-# TODO: implement verification algorithm in different ways
 def verify(
     args,
     dataset: DataSet,
-    input: np.ndarray,
+    input_data: np.ndarray,
 ) -> str:
     """
     Verification algorithm:
 
-    Support: MIP (SCIP, Gurobi), SMT 
+    Support: MIP (SCIP, Gurobi), SMT
     """
     result: str = "UNSAT"
-    vnnlib_filename: str = write_vnnlib(data=input, 
-                                        num_classes=10,
-                                        true_label=T,
-                                        epsilon=dataset.epsilon)
+    vnnlib_filename: str = write_vnnlib(
+        data=input_data, num_classes=10, true_label=T, epsilon=dataset.epsilon
+    )
     networks: NetworksStructure = extract_network_structure(
         onnx_file_path=dataset.onnx_filename, vnnlib_file_path=vnnlib_filename
     )
-    
+
     if args.solver == "scip" or args.solver == "gurobi":
         Logger.info(messages=f"Verification Algorithm is MIP solver ({args.solver})")
-        m: SCIPModel | GurobiModel = mip_verifier(solver_name=args.solver, networks=networks)
+        m: SCIPModel | GurobiModel = mip_verifier(
+            solver_name=args.solver, networks=networks
+        )
         result = "UNSAT" if m.get_solution_status() == "Infeasible" else "SAT"
     elif args.solver == "z3":
         Logger.info(messages="Verification Algorithm is SMT solver (Z3)")
@@ -79,9 +83,9 @@ def verify(
 def _execute(args) -> None:
     """
     Complete verification
-    
-    Build a mixed-integer programming model to verify neural networks.
-    
+
+    Build a complete model to verify neural networks.
+
     step 0. read the input files.
     step 1. filter correct classification results from testing dataset.
     step 2. based on each label, separate into different groups.
@@ -90,7 +94,7 @@ def _execute(args) -> None:
     step 5. solve it.
     step 6. store the result into csv file.
     """
-    
+
     # step 0.
     Logger.info(messages="step 0: read the input files")
     dataset: DataSet = load_dataset(
@@ -186,28 +190,34 @@ def _execute(args) -> None:
             start_time = time.time()
             status: str = verify(args, dataset=dataset, input=each_input)
             end_time = time.time()
-            new_result: List[Any] = ["Lp", 
-                                     "mnist", 
-                                     i, 
-                                     str(end_time - start_time),
-                                     status,
-                                     dataset.epsilon]
+            new_result: List[Any] = [
+                "Lp",
+                "mnist",
+                i,
+                str(end_time - start_time),
+                status,
+                dataset.epsilon,
+            ]
             results.add_result(new_result)
 
     return
 
 
 def main(args) -> str:
+    """
+    Main function to execute the complete verification process.
+    """
+
     Logger.initialize(filename="log.txt", with_log_file=False)
     Logger.info(messages="complete verification is starting...")
-    
+
     _execute(args)
-    
+
     Logger.info(messages="complete verification is finished!")
-    
-    return 
+
+    return
 
 
 if __name__ == "__main__":
-    args = parser.parse()
-    main(args)
+    _args = parser.parse()
+    main(_args)

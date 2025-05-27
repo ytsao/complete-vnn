@@ -1,5 +1,8 @@
-import sys
-from typing import List, Tuple, Dict, Any
+"""
+This module defines the Groubi modeling interface for building MIP models.
+"""
+
+from typing import List, Any
 
 try:
     import gurobipy as gp

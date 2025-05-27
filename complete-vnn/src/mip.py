@@ -1,12 +1,22 @@
-from typing import Any, List
+"""
+MIP-based verifier for neural networks.
+Author: Yi-Nung Tsao
+"""
 
-import numpy as np
-
-from utils import MIPModel
-from utils import SCIPModel
-from utils import GurobiModel
-from utils import NetworksStructure
-from utils.log import Logger
+# Try relative import first
+try:
+    from utils import MIPModel
+    from utils import SCIPModel
+    from utils import GurobiModel
+    from utils import NetworksStructure
+    from utils.log import Logger
+except ImportError:
+    # Fall back to absolute import
+    from .utils import MIPModel
+    from .utils import SCIPModel
+    from .utils import GurobiModel
+    from .utils import NetworksStructure
+    from .utils.log import Logger
 
 # required >= 3.12 version
 # type ModelType = SCIPModel | GurobiModel
@@ -15,13 +25,16 @@ from utils.log import Logger
 class _ObjectiveFunction:
     @staticmethod
     def robustness_property(m: SCIPModel | GurobiModel) -> SCIPModel | GurobiModel:
+        """
+        create objective function for robustness property.
+        """
         Logger.info(messages="Create objective function")
 
         robustness_variable = m.solver.continue_variables["robustness_property"]
         max_variable = m.solver.continue_variables["max_value"]
 
         expression = robustness_variable + max_variable
-        for key, value in m.solver.binary_variables.items():
+        for _, value in m.solver.binary_variables.items():
             expression += 2 * value
 
         m.add_objective_function(express=expression, sense="minimize")
@@ -29,6 +42,7 @@ class _ObjectiveFunction:
         Logger.info(messages="Objective function is created")
 
         return m
+
 
 class _Constraints:
     @staticmethod
@@ -40,37 +54,13 @@ class _Constraints:
         """
         Logger.info(messages="Create pre-condition constraints")
 
-        for id, value in enumerate(networks.pre_condition):
-            m.change_variable_lb(m.solver.continue_variables[f"x_{0}_{id}"], value[0])
-            m.change_variable_ub(m.solver.continue_variables[f"x_{0}_{id}"], value[1])
+        for idx, value in enumerate(networks.pre_condition):
+            m.change_variable_lb(m.solver.continue_variables[f"x_{0}_{idx}"], value[0])
+            m.change_variable_ub(m.solver.continue_variables[f"x_{0}_{idx}"], value[1])
 
         Logger.info(messages="Pre-condition constraints are created")
 
         return m
-
-    # @staticmethod
-    # def pre_condition(m: SCIPModel | GurobiModel, current_data: jnp.ndarray, epsilon: float) -> SCIPModel | GurobiModel:
-    #     """
-    #     build pre-condition constraints based on the input data (L-infinity norm).
-    #     """
-    #     for each_pixel in current_data:
-    #         value = current_data[each_pixel]
-    #         m.change_variable_lb(m.solver.continue_variables[f"x_{0}_{each_pixel}"], value - epsilon)
-    #         m.change_variable_ub(m.solver.continue_variables[f"x_{0}_{each_pixel}"], value + epsilon)
-
-    #     return m
-
-    # @staticmethod
-    # def post_condition(m: SCIPModel | GurobiModel, dataset: DataSet, data_id: int, networks: NetworksStructure) -> SCIPModel | GurobiModel:
-    #     last_layer_id: int = networks.num_layers - 1
-    #     true_label: int = dataset.test_labels[data_id].argmax()
-
-    #     all_variables = [v_var for k_var, v_var in m.solver.continue_variables.items() if f"x_{last_layer_id}" in k_var]
-    #     target_variable = m.solver.continue_variables[f"x_{last_layer_id}_{true_label}"]
-    #     m.add_max_constraint(max_variable=m.solver.continue_variables["max_value"], variables=all_variables, name=f"post_condition_{data_id}")
-    #     m.add_constraint(express=m.solver.continue_variables["max_value"] >= target_variable + 0.000001, name=f"post_condition_{data_id}")
-
-    #     return m
 
     @staticmethod
     def post_condition(
@@ -162,6 +152,9 @@ class _Constraints:
     def feedforward_networks(
         m: SCIPModel | GurobiModel, networks: NetworksStructure
     ) -> SCIPModel | GurobiModel:
+        """
+        build feedforward constraints based on the network structure.
+        """
         Logger.info(messages="Create feedforward constraints")
 
         for k, Nk in enumerate(networks.layer_to_layer):
@@ -186,6 +179,9 @@ class _Constraints:
     def relu(
         m: SCIPModel | GurobiModel, networks: NetworksStructure
     ) -> SCIPModel | GurobiModel:
+        """
+        build ReLU constraints based on the network structure.
+        """
         Logger.info(messages="Create ReLU constraints")
 
         for k, Nk in enumerate(networks.layer_to_layer):
@@ -228,6 +224,9 @@ class _Constraints:
 def _create_decision_variables(
     m: SCIPModel | GurobiModel, networks: NetworksStructure
 ) -> SCIPModel | GurobiModel:
+    """
+    create decision variables for MIP model.
+    """
     Logger.info(messages="Create decision variables")
 
     m.add_variable(lb=0, ub=None, vtype="C", name="robustness_property")
@@ -292,6 +291,9 @@ def _create_decision_variables(
 
 
 def dump(m: SCIPModel | GurobiModel) -> None:
+    """
+    dump the results of the MIP model.
+    """
     solution_status: str = m.get_solution_status()
     if solution_status == "Infeasible":
         print("UNSAT")
@@ -312,7 +314,14 @@ def dump(m: SCIPModel | GurobiModel) -> None:
 def mip_verifier(
     solver_name: str, networks: NetworksStructure
 ) -> SCIPModel | GurobiModel | None:
-    """ """
+    """
+    MIP-based verifier for neural networks.
+    Args:
+        solver_name (str): The name of the solver to use ("scip" or "gurobi").
+        networks (NetworksStructure): The structure of the neural networks to verify.
+    Returns:
+        SCIPModel | GurobiModel | None: The MIP model used for verification.
+    """
     m: SCIPModel | GurobiModel | None = None
     if solver_name == "scip":
         Logger.info(messages="SCIP solver is used.")
